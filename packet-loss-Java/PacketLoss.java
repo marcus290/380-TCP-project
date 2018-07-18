@@ -20,22 +20,33 @@ public class PacketLoss {
 	
 	public void start() {
 		File f = new File("trace-small.txt");
-		System.out.println(f);
 		TraceData traceInput = new TraceData(f);
 		HashMap<List<String>, Integer> connectionsDict = new HashMap<>();
+		HashMap<List<String>, ArrayList<Integer>> outOfSeq = new HashMap<>(); //list of packets that are out of sequence, value is an ArrayList of trace line indexes
 		int counter = 0;
-		for (String[] line : traceInput.traceLines) {
+		for (int i = 0; i < traceInput.traceLines.size(); i++) {
+			String[] line = traceInput.traceLines.get(i);
 			if (line[2].isEmpty() || line[3].isEmpty() || line[4].isEmpty() || line[5].isEmpty()) //if any IP or ports are empty, skip
 				continue;
 			List<String> connectionTuple = Collections.unmodifiableList(Arrays.asList(line[2], line[3], line[4], line[5]));
 			counter += 1;
-			if (counter % 1000 == 0) 
-				System.out.println(connectionTuple.hashCode());
+			//if (counter % 1000 == 0) 
+			//	System.out.println(connectionTuple.hashCode());
 			//System.out.println(Arrays.toString(connectionTuple.toArray()));
 			if (connectionsDict.containsKey(connectionTuple)) {
-				System.out.println("contains key!");
-			} else {
-				connectionsDict.put(connectionTuple, Integer.parseInt(line[13]));
+				int sequenceNum = connectionsDict.get(connectionTuple);
+				if (sequenceNum == Integer.parseInt(line[13])) {
+					connectionsDict.replace(connectionTuple, sequenceNum + Integer.parseInt(line[8])); //update value to next expected TCP sequence num
+					if (outOfSeq.containsKey(connectionTuple)) {
+						
+					}				
+			} else if (Integer.parseInt(line[13]) == 0) {
+				connectionsDict.put(connectionTuple, 1);
+			} else { //Handle the out-of-sequence packet
+				if (outOfSeq.containsKey(connectionTuple) 
+					outOfSeq.get(connectionTuple).add(i);
+				else
+					outOfSeq.put(connectionTuple, new ArrayList<Integer>(Arrays.asList(i)); //if outOfSeq already contains the connection, add new packet index line, else add connection to outOfSeq
 			}
 			
 		}
