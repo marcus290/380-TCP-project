@@ -29,28 +29,36 @@ public class PacketLoss {
 			if (line[2].isEmpty() || line[3].isEmpty() || line[4].isEmpty() || line[5].isEmpty()) //if any IP or ports are empty, skip
 				continue;
 			List<String> connectionTuple = Collections.unmodifiableList(Arrays.asList(line[2], line[3], line[4], line[5]));
+			int packetSeqNum = Integer.parseInt(line[13]);
 			counter += 1;
 			//if (counter % 1000 == 0) 
 			//	System.out.println(connectionTuple.hashCode());
 			//System.out.println(Arrays.toString(connectionTuple.toArray()));
 			if (connectionsDict.containsKey(connectionTuple)) {
-				int sequenceNum = connectionsDict.get(connectionTuple);
-				if (sequenceNum == Integer.parseInt(line[13])) {
-					connectionsDict.replace(connectionTuple, sequenceNum + Integer.parseInt(line[8])); //update value to next expected TCP sequence num
-					if (outOfSeq.containsKey(connectionTuple)) {
-						for (int j = 0; j < outOfSeq.get(connectionTuple).size(); j++) {
-							outOfSeq.get(connectionTuple).get(j);
-						}
-
-					}				
-			} else if (Integer.parseInt(line[13]) == 0) {
+				int seqNum = connectionsDict.get(connectionTuple);
+				if (seqNum == packetSeqNum) {
+					updateSeqNum(seqNum, line, connectionsDict, outOfSeq);
+				}				
+			} else if (packetSeqNum == 0) {
 				connectionsDict.put(connectionTuple, 1);
 			} else { //Handle out-of-sequence packets
 				if (!outOfSeq.containsKey(connectionTuple)) 
 					outOfSeq.put(connectionTuple, new HashMap<>()); //add connection and new HashMap to outOfSeq HashMap
-				outOfSeq.get(connectionTuple).put(Integer.parseInt(line[13]), i);// add TCP sequence number and index of trace line to HashMap 
+				outOfSeq.get(connectionTuple).put(packetSeqNum, packetSeqNum + Integer.parseInt(line[8]));// add TCP sequence number and index of trace line to HashMap 
 			}
 			
+		}
+	}
+	
+	public void updateSeqNum(int seqNum, String[] line, HashMap<List<String>, Integer> connectionsDict, HashMap<List<String>, HashMap<Integer, Integer>> outOfSeq) {
+		int nextSeqNum = seqNum + Integer.parseInt(line[8]);
+		connectionsDict.replace(connectionTuple, nextSeqNum); //update value to next expected TCP sequence num
+		if (outOfSeq.containsKey(connectionTuple)) {
+			if (outOfSeq.get(connectionTuple).containsKey(nextSeqNum)) {
+				updateSeqNum(nextSeqNum, line, connectionsDict, outOfSeq);
+				outOfSeq.remove(nextSeqNum);
+				System.out.println(nextSeqNum + "packet which was out of sequence, removed from outOfSeq HashMap");
+			}
 		}
 	}
 	
