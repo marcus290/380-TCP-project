@@ -22,7 +22,7 @@ public class PacketLoss {
 		File f = new File("trace-small.txt");
 		TraceData traceInput = new TraceData(f);
 		HashMap<List<String>, Integer> connectionsDict = new HashMap<>();
-		HashMap<List<String>, ArrayList<Integer>> outOfSeq = new HashMap<>(); //list of packets that are out of sequence, value is an ArrayList of trace line indexes
+		HashMap<List<String>, HashMap<Integer, Integer>> outOfSeq = new HashMap<>(); //list of packets that are out of sequence, value is an ArrayList of trace line indexes
 		int counter = 0;
 		for (int i = 0; i < traceInput.traceLines.size(); i++) {
 			String[] line = traceInput.traceLines.get(i);
@@ -38,15 +38,17 @@ public class PacketLoss {
 				if (sequenceNum == Integer.parseInt(line[13])) {
 					connectionsDict.replace(connectionTuple, sequenceNum + Integer.parseInt(line[8])); //update value to next expected TCP sequence num
 					if (outOfSeq.containsKey(connectionTuple)) {
-						
+						for (int j = 0; j < outOfSeq.get(connectionTuple).size(); j++) {
+							outOfSeq.get(connectionTuple).get(j);
+						}
+
 					}				
 			} else if (Integer.parseInt(line[13]) == 0) {
 				connectionsDict.put(connectionTuple, 1);
-			} else { //Handle the out-of-sequence packet
-				if (outOfSeq.containsKey(connectionTuple) 
-					outOfSeq.get(connectionTuple).add(i);
-				else
-					outOfSeq.put(connectionTuple, new ArrayList<Integer>(Arrays.asList(i)); //if outOfSeq already contains the connection, add new packet index line, else add connection to outOfSeq
+			} else { //Handle out-of-sequence packets
+				if (!outOfSeq.containsKey(connectionTuple)) 
+					outOfSeq.put(connectionTuple, new HashMap<>()); //add connection and new HashMap to outOfSeq HashMap
+				outOfSeq.get(connectionTuple).put(Integer.parseInt(line[13]), i);// add TCP sequence number and index of trace line to HashMap 
 			}
 			
 		}
