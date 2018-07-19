@@ -19,7 +19,7 @@ public class PacketLoss {
 	}
 	
 	public void start() {
-		File f = new File("trace-small.txt");
+		File f = new File("trace-small2.txt");
 		TraceData traceInput = new TraceData(f);
 		HashMap<List<String>, Integer> connectionsDict = new HashMap<>();
 		HashMap<List<String>, HashMap<Integer, Integer>> outOfSeq = new HashMap<>(); //list of packets that are out of sequence, value is an ArrayList of trace line indexes
@@ -30,16 +30,15 @@ public class PacketLoss {
 				continue;
 			List<String> connectionTuple = Collections.unmodifiableList(Arrays.asList(line[2], line[3], line[4], line[5]));
 			int packetSeqNum = Integer.parseInt(line[13]);
-			counter += 1;
-			//if (counter % 1000 == 0) 
-			//	System.out.println(connectionTuple.hashCode());
-			//System.out.println(Arrays.toString(connectionTuple.toArray()));
-			if (connectionsDict.containsKey(connectionTuple)) {
-				int seqNum = connectionsDict.get(connectionTuple);
-				if (seqNum == packetSeqNum) {
-					updateSeqNum(seqNum, line, connectionsDict, outOfSeq);
-				}				
-			} else if (packetSeqNum == 0) {
+			//counter += 1;
+			//if (counter % 10000 == 0) 
+			//	System.out.println(counter + " lines parsed.");
+			for (List<String> key: outOfSeq.keySet())
+				System.out.println(key); 
+			
+			if (connectionsDict.containsKey(connectionTuple) && packetSeqNum == connectionsDict.get(connectionTuple)) {
+				updateSeqNum(connectionsDict.get(connectionTuple), line, connectionTuple, connectionsDict, outOfSeq);
+			} else if (packetSeqNum == 0) {//Handle new connections
 				connectionsDict.put(connectionTuple, 1);
 			} else { //Handle out-of-sequence packets
 				if (!outOfSeq.containsKey(connectionTuple)) 
@@ -48,16 +47,19 @@ public class PacketLoss {
 			}
 			
 		}
+ 
 	}
 	
-	public void updateSeqNum(int seqNum, String[] line, HashMap<List<String>, Integer> connectionsDict, HashMap<List<String>, HashMap<Integer, Integer>> outOfSeq) {
+	public void updateSeqNum(int seqNum, String[] line, List<String> connectionTuple, HashMap<List<String>, Integer> connectionsDict, 
+								HashMap<List<String>, HashMap<Integer, Integer>> outOfSeq) {
 		int nextSeqNum = seqNum + Integer.parseInt(line[8]);
+		System.out.println("For " + connectionTuple + " " + connectionsDict.get(connectionTuple) + " is replaced by " + nextSeqNum);
 		connectionsDict.replace(connectionTuple, nextSeqNum); //update value to next expected TCP sequence num
 		if (outOfSeq.containsKey(connectionTuple)) {
 			if (outOfSeq.get(connectionTuple).containsKey(nextSeqNum)) {
-				updateSeqNum(nextSeqNum, line, connectionsDict, outOfSeq);
+				updateSeqNum(nextSeqNum, line, connectionTuple, connectionsDict, outOfSeq);
 				outOfSeq.remove(nextSeqNum);
-				System.out.println(nextSeqNum + "packet which was out of sequence, removed from outOfSeq HashMap");
+				System.out.println(nextSeqNum + " packet which was out of sequence, removed from outOfSeq HashMap");
 			}
 		}
 	}
@@ -93,9 +95,6 @@ public class PacketLoss {
 			while (input.hasNext()) {
 				String currentLine = input.nextLine();
 				traceLines.add(currentLine.split("\t"));
-				counter += 1;
-				if (counter % 10000 == 0) 
-					System.out.println(counter + " lines parsed.");
 			}
 			input.close();
 		}
