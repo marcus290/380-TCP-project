@@ -1,5 +1,6 @@
 import java.util.ArrayList;
 import java.util.Set;
+import java.util.HashSet;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Collections;
@@ -14,12 +15,13 @@ import java.io.IOException;
 
 public class PacketLoss {
 	HashMap<Long, Integer> connectionsDict = new HashMap<>();
-	HashMap<Long, HashMap<Integer, Integer[]>> outOfSeq = new HashMap<>(); //list of packets that are out of sequence, value is an ArrayList of trace line indexes
+	HashMap<Long, HashMap<Integer, oOSPacket>> outOfSeq = new HashMap<>(); //hashmap of packets that are out of sequence
 	ArrayList<Long> closedConnections = new ArrayList<Long>(); //record of connections which have all packets accounted for in sequence and closed
 	static String defaultFile = "trace-small.txt";
 	//int counter = 0;
 	int packetCounter = 0;
 	int byteCounter = 0;
+	int connectionCounter = 0;
 	int missingBytes = 0;
 		
 	public static void main(String args[]) {
@@ -62,11 +64,12 @@ public class PacketLoss {
 							connID, Integer.parseInt(line[14]));
 				
 			} else if (seqNum == 0) {//Handle new connections
+				connectionCounter += 1;
 				connectionsDict.put(connID, 1);
 			} else { //Handle out-of-sequence packets
 				if (!outOfSeq.containsKey(connID)) 
 					outOfSeq.put(connID, new HashMap<>()); //add connection and new HashMap to outOfSeq HashMap
-				outOfSeq.get(connID).put(seqNum, new Integer[]{seqNum + Integer.parseInt(line[8]) + Integer.parseInt(line[11]), Integer.parseInt(line[14])});
+				outOfSeq.get(connID).put(seqNum, new oOSPacket(seqNum, seqNum + Integer.parseInt(line[8]) + Integer.parseInt(line[11]), Integer.parseInt(line[14]), Double.parseDouble(line[1])));
 				// add TCP sequence number as key, add next TCP sequence number & connection close flag as value array
 			}
 		}
@@ -89,12 +92,14 @@ public class PacketLoss {
 			}
 		}
 
-		System.out.println("\nConnections still open:");
-		if (connectionsDict.isEmpty()) {
+		System.out.println("\nIncomplete connections:");
+		if (connectionsDict.isEmpty() && outOfSeq.isEmpty()) {
 			System.out.println("None");
 		} else {
-			for (long key: connectionsDict.keySet())
-				System.out.println(longToString(key) + " expecting packet " + connectionsDict.get(key));
+			Set<Long> keyList = new HashSet(connectionsDict.keySet());
+			keyList.addAll(outOfSeq.keySet());
+			for (long key: keyList)
+				System.out.println(longToString(key) + ((!connectionsDict.isEmpty()) ? (" expecting packet " + connectionsDict.get(key)) : ""));
 		}
 		// System.out.print("\nRemaining orphaned out-of-sequence packets:");
 		// if (outOfSeq.isEmpty()) {
@@ -108,43 +113,48 @@ public class PacketLoss {
 		// 	}
 		// }
 		
-		System.out.println("\n\nSummary:");
-		System.out.println(packetCounter + " packets checked containing a total of " + byteCounter + " bytes.");
 		if (!outOfSeq.isEmpty()) {
 			
 			for (long connection: outOfSeq.keySet()) { //for each connection with out-of-sequence packets
 				Set<Integer> keySetCopy = outOfSeq.get(connection).keySet();
 				int nextSeqNum = Collections.min(keySetCopy);
 				int prevSeqNum;
+				System.out.println("\nMissing bytes from connection " + longToString(connection) + " as follows:");
 				//calculate missing bytes between sequenced packets and first oOS packet
 				if (!connectionsDict.containsKey(connection)) { 
 					missingBytes += nextSeqNum;
-					nextSeqNum = outOfSeq.get(connection).get(nextSeqNum)[0];
+					System.out.println(nextSeqNum + " missing bytes between start of connection and TCP sequence number " + nextSeqNum + 
+										" at time " + outOfSeq.get(connection).get(nextSeqNum).getTimeStamp());
+					//nextSeqNum = outOfSeq.get(connection).get(nextSeqNum).getNextSeqNum();
 				} else {
 					missingBytes += nextSeqNum - connectionsDict.get(connection);
+					System.out.println((nextSeqNum - connectionsDict.get(connection))+ " missing bytes between TCP sequence numbers " + connectionsDict.get(connection) + " and " + nextSeqNum + 
+										" at time " + outOfSeq.get(connection).get(nextSeqNum).getTimeStamp());
 				}
 
 				//calculate missing bytes between oOS packets
 				while (!keySetCopy.isEmpty()) {
 					do {
 						prevSeqNum = nextSeqNum;
-						nextSeqNum = outOfSeq.get(connection).get(prevSeqNum)[0];
+						nextSeqNum = outOfSeq.get(connection).get(prevSeqNum).getNextSeqNum();
 						keySetCopy.remove(prevSeqNum);
 					} while (outOfSeq.get(connection).containsKey(nextSeqNum));
 					
 					if (!keySetCopy.isEmpty()) {
+						prevSeqNum = nextSeqNum;
 						nextSeqNum = Collections.min(keySetCopy);
 						missingBytes += nextSeqNum - prevSeqNum;
-						System.out.println("missing bytes between oOS packet " + prevSeqNum + " and " + nextSeqNum + "! Total bytes:" + (nextSeqNum - prevSeqNum));
-				
+						System.out.println((nextSeqNum - prevSeqNum) + " missing bytes between TCP sequence numbers " + prevSeqNum + " and " + nextSeqNum + 
+											" at time " + outOfSeq.get(connection).get(nextSeqNum).getTimeStamp());
 					}
 				}
 				
 			}
 		}
-		System.out.printf("%n%d / %d bytes missing from trace sequence (%.2f%% loss).%n%n", missingBytes, byteCounter, missingBytes / (double) byteCounter);
-		System.out.println("Subsequent missing packets from " + connectionsDict.size() + " connections could not be determined.%n");
-		
+		System.out.println("\n\nSummary:");
+		System.out.println(packetCounter + " packets checked containing a total of " + byteCounter + " bytes from " + connectionCounter + " connections.\n");
+		System.out.printf("%d / %d bytes missing from trace sequence (%.2f%% loss).%n%n", missingBytes, byteCounter, missingBytes / (double) byteCounter);
+		System.out.println("Subsequent missing packets from " + connectionsDict.size() + " connections could not be determined.\n");
 	}
 	
 
@@ -201,11 +211,11 @@ public class PacketLoss {
 		
 		//after updating, check if any outOfSeq packets can be reordered
 		if (outOfSeq.containsKey(connID) && outOfSeq.get(connID).containsKey(nextSeqNum)) {
-			Integer[] outOfSeqInfo = outOfSeq.get(connID).remove(nextSeqNum); //remove the reordered packet info from outOfSeq
+			oOSPacket outOfSeqInfo = outOfSeq.get(connID).remove(nextSeqNum); //remove the reordered packet info from outOfSeq
 			if (outOfSeq.get(connID).isEmpty())
 				outOfSeq.remove(connID); //remove the connection from outOfSeq if no more outOfSeq packets
 			//System.out.println(nextSeqNum + " packet from " + connID + " which was out of sequence, removed from outOfSeq HashMap");
-			updateSeqNum(nextSeqNum, outOfSeqInfo[0], connID, outOfSeqInfo[1]);
+			updateSeqNum(nextSeqNum, outOfSeqInfo.getNextSeqNum(), connID, outOfSeqInfo.getFinFlag());
 		}
 		if (closedFlag == 2) {
 			//System.out.println(connID + " closed");
@@ -215,7 +225,44 @@ public class PacketLoss {
 	}
 
 /**
- * TraceData inner class of TraceViewer to handle the instantiating and preparation of data from the trace file.
+ * Out-of-sequence packet inner class to store data on each out of sequence packet.
+ */
+private class oOSPacket {
+	private int seqNum;
+	private int nextSeqNum;
+	private int finFlag;
+	private double timeStamp;
+
+/**
+ * Constructor for oOSPacket object. Takes the TCP sequence number, next expected TCP sequence number,
+ * close connection flag, and time stamp of the packet and stores them into the class
+ * @param seqNum TCP sequence number
+ * @param nextSeqNum next expected TCP sequence number
+ * @param finFlag close connection flag of the packet
+ * @param timeStamp time stamp of the packet
+ */
+	private oOSPacket(int seqNum, int nextSeqNum, int finFlag, double timeStamp) {
+		this.seqNum = seqNum;
+		this.nextSeqNum = nextSeqNum;
+		this.finFlag = finFlag;
+		this.timeStamp = timeStamp;
+	}
+	private int getSeqNum() {
+		return seqNum;
+	}
+	private int getNextSeqNum() {
+		return nextSeqNum;
+	}
+	private int getFinFlag() {
+		return finFlag;
+	}
+	private double getTimeStamp() {
+		return timeStamp;
+	}
+}
+
+/**
+ * TraceData inner class to handle the instantiating and preparation of data from the trace file.
  */
 	private class TraceData {
 		private ArrayList<String[]> traceLines = new ArrayList<String[]>();
