@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdint.h>
 
 void main(int argc, char *argv[]) {
     //HashMap<Long, Integer> connectionsDict = new HashMap<>();
@@ -10,4 +11,11 @@ void main(int argc, char *argv[]) {
 	unsigned int byteCounter = 0;
 	unsigned int connectionCounter = 0;
 	unsigned int missingBytes = 0;
+
+	struct traceFileLine {
+		unsigned int packetNum;
+		double timeStamp;
+		uint64_t connID;
+	}
+	;
 }

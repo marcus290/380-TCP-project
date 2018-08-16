@@ -14,13 +14,13 @@ import java.io.File;
 import java.io.IOException;
 
 public class PacketLoss {
-	HashMap<Long, Integer> connectionsDict = new HashMap<>();
-	HashMap<Long, HashMap<Integer, oOSPacket>> outOfSeq = new HashMap<>(); //hashmap of packets that are out of sequence
+	HashMap<Long, Long> connectionsDict = new HashMap<>();
+	HashMap<Long, HashMap<Long, oOSPacket>> outOfSeq = new HashMap<>(); //hashmap of packets that are out of sequence
 	ArrayList<Long> closedConnections = new ArrayList<Long>(); //record of connections which have all packets accounted for in sequence and closed
 	static String defaultFile = "trace-small.txt";
 	//int counter = 0;
 	int packetCounter = 0;
-	int byteCounter = 0;
+	long byteCounter = 0;
 	int connectionCounter = 0;
 	int missingBytes = 0;
 		
@@ -47,9 +47,9 @@ public class PacketLoss {
 			if (line[2].isEmpty() || line[3].isEmpty() || line[4].isEmpty() || line[5].isEmpty()) //if any IP or ports are empty, skip
 				continue;
 			long connID = makeLongID(line);
-			int seqNum = Integer.parseInt(line[13]);
+			long seqNum = Long.parseLong(line[13]);
 			packetCounter += 1;
-			byteCounter += Integer.parseInt(line[8]) + Integer.parseInt(line[11]);
+			byteCounter += Long.parseLong(line[8]) + Long.parseLong(line[11]);
 			//counter += 1;
 			//if (counter % 10000 == 0) 
 			//	System.out.println(counter + " lines parsed.");
@@ -65,7 +65,7 @@ public class PacketLoss {
 				
 			} else if (seqNum == 0) {//Handle new connections
 				connectionCounter += 1;
-				connectionsDict.put(connID, 1);
+				connectionsDict.put(connID, 1L);
 			} else { //Handle out-of-sequence packets
 				if (!outOfSeq.containsKey(connID)) 
 					outOfSeq.put(connID, new HashMap<>()); //add connection and new HashMap to outOfSeq HashMap
@@ -82,8 +82,8 @@ public class PacketLoss {
 		for (Iterator<Long> conns = outOfSeq.keySet().iterator(); conns.hasNext();) { //clean up duplicate packets which are already sequenced in a connection
 			long connection = conns.next();
 			if (connectionsDict.containsKey(connection)) {
-				for (Iterator<Integer> packets = outOfSeq.get(connection).keySet().iterator(); packets.hasNext();) {
-					Integer packet = packets.next();
+				for (Iterator<Long> packets = outOfSeq.get(connection).keySet().iterator(); packets.hasNext();) {
+					Long packet = packets.next();
 					if (packet < connectionsDict.get(connection)) 
 						packets.remove();
 				}
@@ -116,9 +116,9 @@ public class PacketLoss {
 		if (!outOfSeq.isEmpty()) {
 			
 			for (long connection: outOfSeq.keySet()) { //for each connection with out-of-sequence packets
-				Set<Integer> keySetCopy = outOfSeq.get(connection).keySet();
-				int nextSeqNum = Collections.min(keySetCopy);
-				int prevSeqNum;
+				Set<Long> keySetCopy = outOfSeq.get(connection).keySet();
+				long nextSeqNum = Collections.min(keySetCopy);
+				long prevSeqNum;
 				System.out.println("\nMissing bytes from connection " + longToString(connection) + " as follows:");
 				//calculate missing bytes between sequenced packets and first oOS packet
 				if (!connectionsDict.containsKey(connection)) { 
@@ -205,7 +205,7 @@ public class PacketLoss {
 	 * @param connID identifier for the connection
 	 * @param closedflag flag for whether the packet is closing the connection
 	 */	
-	public void updateSeqNum(int seqNum, int nextSeqNum, long connID, int closedFlag) {
+	public void updateSeqNum(long seqNum, long nextSeqNum, long connID, int closedFlag) {
 		//System.out.println("For " + connID + " " + connectionsDict.get(connID) + " is replaced by " + nextSeqNum);
 		connectionsDict.replace(connID, nextSeqNum); //update value to next expected TCP sequence num
 		
@@ -228,8 +228,8 @@ public class PacketLoss {
  * Out-of-sequence packet inner class to store data on each out of sequence packet.
  */
 private class oOSPacket {
-	private int seqNum;
-	private int nextSeqNum;
+	private long seqNum;
+	private long nextSeqNum;
 	private int finFlag;
 	private double timeStamp;
 
@@ -241,16 +241,16 @@ private class oOSPacket {
  * @param finFlag close connection flag of the packet
  * @param timeStamp time stamp of the packet
  */
-	private oOSPacket(int seqNum, int nextSeqNum, int finFlag, double timeStamp) {
+	private oOSPacket(long seqNum, long nextSeqNum, int finFlag, double timeStamp) {
 		this.seqNum = seqNum;
 		this.nextSeqNum = nextSeqNum;
 		this.finFlag = finFlag;
 		this.timeStamp = timeStamp;
 	}
-	private int getSeqNum() {
+	private long getSeqNum() {
 		return seqNum;
 	}
-	private int getNextSeqNum() {
+	private long getNextSeqNum() {
 		return nextSeqNum;
 	}
 	private int getFinFlag() {
