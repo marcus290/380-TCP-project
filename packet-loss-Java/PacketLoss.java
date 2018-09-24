@@ -6,8 +6,6 @@ import java.util.Iterator;
 import java.util.Collections;
 import java.util.List;
 import java.util.Arrays;
-//import java.util.Comparator;
-//import java.util.regex.*;
 import java.util.Scanner;
 
 import java.io.File;
