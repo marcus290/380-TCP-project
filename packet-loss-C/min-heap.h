@@ -5,14 +5,14 @@ struct heap
 	struct packet* *data; // Array with the elements
 };
 
-void heap_init(struct heap *restrict h);
-void heap_push(struct heap *restrict h, struct packet* value);
-void heap_pop(struct heap *restrict h);
+void heap_init(struct heap* h);
+void heap_push(struct heap* h, struct packet* value);
+void heap_pop(struct heap* h);
 
-// Returns the biggest element in the heap
+// Returns the smallest element in the heap
 #define heap_front(h) (*(h)->data)
 
 // Frees the allocated memory
 #define heap_term(h) (free((h)->data))
 
-void heapify(struct packet* data[restrict], unsigned int count);
+//void heapify(struct packet* data[restrict], unsigned int count);

@@ -16,3 +16,8 @@ struct connection {
 	unsigned long destIP;
 	unsigned long destPort;
 };
+
+struct node {
+    uint64_t connID;
+    struct node* next;
+};

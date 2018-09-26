@@ -37,7 +37,6 @@ static ht_item* ht_new_item(uint64_t k, unsigned long v) {
     return i;
 }
 
-
 static ht_hash_table* ht_new_sized(const int base_size) {
     ht_hash_table* ht = malloc(sizeof(ht_hash_table));
     ht->base_size = base_size;
@@ -133,7 +132,6 @@ void ht_insert(ht_hash_table* ht, uint64_t key, unsigned long value) {
             if (cur_item->key == key) {
                 ht_del_item(cur_item);
                 ht->items[index] = item;
-                printf("assigned new seqNum %d!", item->value);
                 return;
             }
         }
