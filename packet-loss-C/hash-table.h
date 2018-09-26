@@ -1,4 +1,4 @@
-/* Hash table in C, credit to https://github.com/jamesroutley/write-a-hash-table 
+/* Hash table in C, adapted from https://github.com/jamesroutley/write-a-hash-table 
  * MIT License
  * Copyright (c) 2017 James Routley
  * Permission is hereby granted, free of charge, to any person obtaining a copy of this software 
@@ -18,9 +18,14 @@
  **/
 
 typedef struct {
-    uint64_t* key;
-    char* value;
+    uint64_t key;
+    unsigned long value;
 } ht_item;
+
+typedef struct {
+    uint64_t key;
+    struct heap* value;
+} oOS_ht_item;
 
 typedef struct {
     int base_size;
@@ -29,8 +34,18 @@ typedef struct {
     ht_item** items;
 } ht_hash_table;
 
-ht_hash_table* ht_new();
-void ht_insert(ht_hash_table* ht, uint64_t* key, const char* value);
-char* ht_search(ht_hash_table* ht, const char* key);
-void ht_delete(ht_hash_table* h, const char* key);
+typedef struct {
+    int base_size;
+    int size;
+    int count;
+    oOS_ht_item** items;
+} oOS_ht_hash_table;
 
+ht_hash_table* ht_new();
+void ht_insert(ht_hash_table* ht, uint64_t key, unsigned long value);
+unsigned long ht_search(ht_hash_table* ht, uint64_t key);
+void ht_delete(ht_hash_table* h, uint64_t key);
+
+void oOS_ht_insert(oOS_ht_hash_table* ht, uint64_t key, struct heap* value);
+struct heap* oOS_ht_search(oOS_ht_hash_table* ht, uint64_t key);
+void oOS_ht_delete(oOS_ht_hash_table* h, uint64_t key);
