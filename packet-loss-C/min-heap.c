@@ -55,7 +55,8 @@ void heap_pop(struct heap* h)
 
 	// Remove the biggest element
 	struct packet* temp = h->data[--h->count];
-
+	
+	
 	// Resize the heap if it's consuming too much memory
 	if ((h->count <= (h->size >> 2)) && (h->size > base_size))
 	{

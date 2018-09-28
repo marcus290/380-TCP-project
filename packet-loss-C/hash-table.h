@@ -19,7 +19,7 @@
 
 typedef struct {
     uint64_t key;
-    unsigned long value;
+    struct connStatus* value;
 } ht_item;
 
 typedef struct {
@@ -42,8 +42,8 @@ typedef struct {
 } oOS_ht_hash_table;
 
 ht_hash_table* ht_new();
-void ht_insert(ht_hash_table* ht, uint64_t key, unsigned long value);
-unsigned long ht_search(ht_hash_table* ht, uint64_t key);
+void ht_insert(ht_hash_table* ht, uint64_t key, struct connStatus* value);
+struct connStatus* ht_search(ht_hash_table* ht, uint64_t key);
 void ht_delete(ht_hash_table* h, uint64_t key);
 
 void oOS_ht_insert(oOS_ht_hash_table* ht, uint64_t key, struct heap* value);

@@ -21,16 +21,20 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <math.h>
 
 #include "hash-table.h"
 #include "min-heap.h"
+#include "PacketLoss.h"
 
 static int HT_INITIAL_BASE_SIZE = 53;
-static ht_item HT_DELETED_ITEM = {0, 0};
+static int HT_PRIME_1 = 59;
+static int HT_PRIME_2 = 13;
+static ht_item HT_DELETED_ITEM = {0, NULL};
 static oOS_ht_item OOS_HT_DELETED_ITEM = {0, NULL};
 
 
-static ht_item* ht_new_item(uint64_t k, unsigned long v) {
+static ht_item* ht_new_item(uint64_t k, struct connStatus* v) {
     ht_item* i = malloc(sizeof(ht_item));
     i->key = k;
     i->value = v;
@@ -55,6 +59,7 @@ ht_hash_table* ht_new() {
 
 
 static void ht_del_item(ht_item* i) {
+    free(i->value);
     free(i);
 }
 
@@ -73,6 +78,7 @@ void ht_del_hash_table(ht_hash_table* ht) {
 
 /* Resizing functions */
 static void ht_resize(ht_hash_table* ht, const int base_size) {
+    puts("resizing HT!");
     if (base_size < HT_INITIAL_BASE_SIZE) {
         return;
     }
@@ -111,14 +117,30 @@ static void ht_resize_down(ht_hash_table* ht) {
     ht_resize(ht, new_size);
 }
 
+static int ht_hash(uint64_t s, const int a, const int m) {
+    unsigned long hash = 0;
+    int hexDigit; 
+    for (int i = 0; i < 64 / 4; i++) {
+        hexDigit = (int) (s % 0x10L);
+        hash += (unsigned long) pow(a, hexDigit) * hexDigit; 
+        s = s >> 4;
+    }
+    
+    hash = hash % m;
+    return (int)hash;
+}
 
 static int ht_get_hash(uint64_t s, const int num_buckets, const int attempt) {
     // Due to distribution of connection IDs, hashing function has been reduced
-    return (int) (s + (attempt * (s % num_buckets + 1))) % num_buckets;
+    // return (int) (s + (attempt * (s % num_buckets + 1))) % num_buckets;
+
+    const int hash_a = ht_hash(s, HT_PRIME_1, num_buckets);
+    const int hash_b = ht_hash(s, HT_PRIME_2, num_buckets);
+    return (hash_a + (attempt * (hash_b + 1))) % num_buckets;
 }
 
 
-void ht_insert(ht_hash_table* ht, uint64_t key, unsigned long value) {
+void ht_insert(ht_hash_table* ht, uint64_t key, struct connStatus* value) {
     const int load = ht->count * 100 / ht->size;
     if (load > 70) {
         ht_resize_up(ht);
@@ -143,7 +165,7 @@ void ht_insert(ht_hash_table* ht, uint64_t key, unsigned long value) {
     ht->count++;
 }
 
-unsigned long ht_search(ht_hash_table* ht, uint64_t key) {
+struct connStatus* ht_search(ht_hash_table* ht, uint64_t key) {
     int index = ht_get_hash(key, ht->size, 0);
     ht_item* item = ht->items[index];
     int i = 1;
@@ -177,6 +199,7 @@ void ht_delete(ht_hash_table* ht, uint64_t key) {
             }
         }
         index = ht_get_hash(key, ht->size, i);
+        int testitemnull = (ht->items[index] == NULL);
         item = ht->items[index];
         i++;
     } 
@@ -212,7 +235,7 @@ oOS_ht_hash_table* oOS_ht_new() {
 }
 
 static void oOS_ht_del_item(oOS_ht_item* i) {
-    free(&(i->key));
+    heap_term(i->value);
     free(i->value);
     free(i);
 }
@@ -232,6 +255,7 @@ void oOS_ht_del_hash_table(oOS_ht_hash_table* ht) {
 
 /* Resizing functions */
 static void oOS_ht_resize(oOS_ht_hash_table* ht, const int base_size) {
+    puts("resizing oOS_HT!");
     if (base_size < HT_INITIAL_BASE_SIZE) {
         return;
     }

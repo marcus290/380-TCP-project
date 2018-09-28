@@ -10,6 +10,11 @@ struct packet {
 	uint64_t connID;
 };
 
+struct connStatus {
+	unsigned long seqNum;
+	double timeStamp;
+};
+
 struct connection {
 	unsigned long sourceIP;
 	unsigned long sourcePort;
