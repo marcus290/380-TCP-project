@@ -27,7 +27,7 @@
 #include "min-heap.h"
 #include "PacketLoss.h"
 
-static int HT_INITIAL_BASE_SIZE = 53;
+static int HT_INITIAL_BASE_SIZE = 97;
 static int HT_PRIME_1 = 59;
 static int HT_PRIME_2 = 13;
 static ht_item HT_DELETED_ITEM = {0, NULL};
@@ -135,7 +135,7 @@ static int ht_get_hash(uint64_t s, const int num_buckets, const int attempt) {
     // return (int) (s + (attempt * (s % num_buckets + 1))) % num_buckets;
 
     const int hash_a = ht_hash(s, HT_PRIME_1, num_buckets);
-    const int hash_b = ht_hash(s, HT_PRIME_2, num_buckets);
+    const int hash_b = ht_hash(s, HT_PRIME_2, num_buckets/2); // divide num_buckets to avoid hash_b = num_buckets - 1
     return (hash_a + (attempt * (hash_b + 1))) % num_buckets;
 }
 
@@ -199,8 +199,10 @@ void ht_delete(ht_hash_table* ht, uint64_t key) {
             }
         }
         index = ht_get_hash(key, ht->size, i);
-        int testitemnull = (ht->items[index] == NULL);
+        
+        //int testitemnull = (ht->items[index] == NULL);
         item = ht->items[index];
+        //printf("index: %d; i: %d; ht->items[index] is NULL: %d\n", index, i, testitemnull);
         i++;
     } 
     ht->count--;

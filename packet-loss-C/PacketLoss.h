@@ -26,3 +26,10 @@ struct node {
     uint64_t connID;
     struct node* next;
 };
+
+struct warningNode {
+    uint64_t connID;
+	double timeStamp;
+	unsigned long bytesMissing;
+    struct node* next;
+};
