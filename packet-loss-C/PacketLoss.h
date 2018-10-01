@@ -31,5 +31,5 @@ struct warningNode {
     uint64_t connID;
 	double timeStamp;
 	unsigned long bytesMissing;
-    struct node* next;
+    struct warningNode* next;
 };

@@ -52,7 +52,6 @@ void heap_push(struct heap* h, struct packet* value)
 void heap_pop(struct heap* h)
 {
 	unsigned int index, swap, other;
-
 	// Remove the biggest element
 	struct packet* temp = h->data[--h->count];
 	
