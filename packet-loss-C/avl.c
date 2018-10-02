@@ -34,6 +34,7 @@ avlNode* newNode(uint64_t item, struct connStatus* value)
     temp->key = item; 
     temp->left = temp->right = NULL; 
     temp->height = 1;
+    temp->value = value;
     return temp; 
 } 
 
@@ -175,7 +176,11 @@ avlNode* minValueNode(avlNode* node)
 avlNode* deleteNode(avlNode* root, uint64_t key) 
 { 
     // STEP 1: PERFORM STANDARD BST DELETE 
-  
+//   if (key == (uint64_t) 0xf1f400005ba81LL && search(root, (uint64_t) 0x101f4000089defLL) != NULL) {
+// 			printf("Entering Step 1: %llx expecting seq num %d since %.3f\n", 0x101f4000089defLL, search(root, (uint64_t) 0x101f4000089defLL)->value->seqNum, search(root, (uint64_t) 0x101f4000089defLL)->value->timeStamp);
+// 		    inorder(root);
+        // }
+       
     if (root == NULL) 
         return root; 
   
@@ -217,6 +222,8 @@ avlNode* deleteNode(avlNode* root, uint64_t key)
   
             // Copy the inorder successor's data to this node 
             root->key = temp->key; 
+            root->height = temp->height;
+            root->value = temp->value;
   
             // Delete the inorder successor 
             root->right = deleteNode(root->right, temp->key); 
@@ -226,7 +233,11 @@ avlNode* deleteNode(avlNode* root, uint64_t key)
     // If the tree had only one node then return 
     if (root == NULL) 
       return root; 
-  
+//   if (key == (uint64_t) 0xf1f400005ba81LL && search(root, (uint64_t) 0x101f4000089defLL) != NULL) {
+// 			printf("Entering Step 2: %llx expecting seq num %d since %.3f\n", 0x101f4000089defLL, search(root, (uint64_t) 0x101f4000089defLL)->value->seqNum, search(root, (uint64_t) 0x101f4000089defLL)->value->timeStamp);
+//             inorder(root);
+//         }
+        
     // STEP 2: UPDATE HEIGHT OF THE CURRENT NODE 
     root->height = 1 + max(height(root->left), 
                            height(root->right)); 

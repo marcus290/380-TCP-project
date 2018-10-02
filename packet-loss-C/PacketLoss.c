@@ -82,8 +82,9 @@ int updateSeqNumsFromBuffer(avlNode** connBSTRoot, oOS_ht_hash_table* oOSHT, str
 			search(*connBSTRoot, currPacket.connID)->value->seqNum = nextOOSSeqNum + nextOOSPacket->payloadSize + nextOOSPacket->fin;
 			search(*connBSTRoot, currPacket.connID)->value->timeStamp = nextOOSPacket->timeStamp;
 			if (nextOOSPacket->fin)	connClosed = 1; // If the sequenced packet from the buffer is FIN, close the connection
-			//printf("updateSeqNumsFromBuffer() assigned new seqNum %d at time %.3f!\n", 
-			//		nextOOSSeqNum + nextOOSPacket->payloadSize + nextOOSPacket->fin, currPacket.timeStamp);
+			printf("updateSeqNumsFromBuffer() assigned new seqNum %d at time %.3f for conn %llx!\n", 
+					nextOOSSeqNum + nextOOSPacket->payloadSize + nextOOSPacket->fin, currPacket.timeStamp,
+					search(*connBSTRoot, currPacket.connID)->key);
 			do {
 				heap_pop(connOOSHeap);
 				if (connOOSHeap->count == 0) break;
@@ -107,7 +108,7 @@ int updateSeqNumsFromBuffer(avlNode** connBSTRoot, oOS_ht_hash_table* oOSHT, str
 /**
  * Function for updating the linked list of closed connections. 
  */	
-void updateClosedConns(struct node** head, uint64_t connID) {
+void updateLinkedList(struct node** head, uint64_t connID) {
 	struct node* newNode = calloc(1, sizeof(struct node));
 	newNode->connID = connID;
 	newNode->next = *head;
@@ -121,20 +122,31 @@ void updateClosedConns(struct node** head, uint64_t connID) {
  */	
 int updateSeqNums(avlNode** connBSTRoot, oOS_ht_hash_table* oOSHT, struct packet currPacket) {
 	int connClosed = 0;
+	
 	printf("Handling packet no. %d at time %.5f of connection %llx\n", currPacket.seqNum, currPacket.timeStamp, currPacket.connID);
-					
+	
+	// if (currPacket.connID == (uint64_t) 0xd1f400005abc8LL) {
+	// int test = (search(*connBSTRoot, currPacket.connID) == NULL && currPacket.syn);
+	// printf("test 1st branch %d\n", test);
+	// test = (search(*connBSTRoot, currPacket.connID) != NULL && search(*connBSTRoot, currPacket.connID)->value->seqNum == currPacket.seqNum);
+	// printf("test 2nd branch %d\n", test);
+	// test = ((search(*connBSTRoot, currPacket.connID) == NULL && !currPacket.syn) || search(*connBSTRoot, currPacket.connID)->value->seqNum < currPacket.seqNum);
+	// printf("test 3rd branch %d\n", test);
+	// }
+	
 	// If packet is from new connection:
-	if (search(*connBSTRoot, currPacket.connID) == NULL) {
+	if (search(*connBSTRoot, currPacket.connID) == NULL && currPacket.syn) {
 		struct connStatus* newConn = calloc(1, sizeof(struct connStatus));
 		*connBSTRoot = insert(*connBSTRoot, currPacket.connID, newConn);
 		newConn->seqNum = 1;
 		newConn->timeStamp = currPacket.timeStamp;
-		if (currPacket.timeStamp == 0) {puts("Error: Bad packet and invalid timestamp!");exit(0);}
+		//if (currPacket.timeStamp == 0) {puts("Error: Bad packet and invalid timestamp!");exit(0);}
 		connClosed = updateSeqNumsFromBuffer(connBSTRoot, oOSHT, currPacket);
 	// Else if packet is from open connection and matches next expected sequence number
-	} else if (search(connBSTRoot, currPacket.connID)->value->seqNum == currPacket.seqNum) {
+	} else if (search(*connBSTRoot, currPacket.connID) != NULL && search(*connBSTRoot, currPacket.connID)->value->seqNum == currPacket.seqNum) {
 		search(*connBSTRoot, currPacket.connID)->value->seqNum = currPacket.seqNum + currPacket.payloadSize + currPacket.fin;
 		search(*connBSTRoot, currPacket.connID)->value->timeStamp = currPacket.timeStamp;
+		//printf("Assigned seqnum %d, at time %.3f, of conn %llx\n", search(*connBSTRoot, currPacket.connID)->value->seqNum, search(*connBSTRoot, currPacket.connID)->value->timeStamp, search(*connBSTRoot, currPacket.connID)->key);
 		connClosed = updateSeqNumsFromBuffer(connBSTRoot, oOSHT, currPacket);
 		// If connection closed from current packet, clean up any packets from the OOS buffer
 		if (currPacket.fin) {
@@ -142,9 +154,10 @@ int updateSeqNums(avlNode** connBSTRoot, oOS_ht_hash_table* oOSHT, struct packet
 			// if (oOS_ht_search(oOSHT, currPacket.connID) != NULL)
 			// 	oOS_ht_delete(oOSHT, currPacket.connID);
 		}
-	// Else if packet is out of sequence.
-	} else if (search(connBSTRoot, currPacket.connID)->value->seqNum < currPacket.seqNum) {
-		// Store packet in buffer if it has a later sequence number
+	// Else if packet is not in connections record (and not SYN) or has seq num greater than the current expected seq num.
+	} else if (search(*connBSTRoot, currPacket.connID) == NULL || search(*connBSTRoot, currPacket.connID)->value->seqNum < currPacket.seqNum) {
+		puts("entered storeOOSpacket branch");
+		// Store packet in buffer if it has a later sequence number, and is not FIN ACK
 		storeOOSPacket(oOSHT, currPacket);
 	}
 	return connClosed;
@@ -177,9 +190,9 @@ void openConns(avlNode** root, struct warningNode** warningHead, int* connCt, in
 		fprintf(file, "%s expecting seq num %d since %.3f\n", 
 				ipString, (*root)->value->seqNum, (*root)->value->timeStamp);
 		if ((*root)->value->timeStamp < lastTimeStamp - 20)
-			updateWarningNodes(&warningHead, (*root)->key, (*root)->value->timeStamp, 0L);
-		*connCt++;
-		*openConnCt++;
+			updateWarningNodes(warningHead, (*root)->key, (*root)->value->timeStamp, 0L);
+		(*connCt)++;
+		(*openConnCt)++;
 		
         openConns(&((*root)->right), warningHead, connCt, openConnCt, file, lastTimeStamp); 
     } 
@@ -188,25 +201,22 @@ void openConns(avlNode** root, struct warningNode** warningHead, int* connCt, in
 /**
  * Function for outputting the summary statistics.
  */
-void summary(avlNode** connBSTRoot, struct node* head, oOS_ht_hash_table* oOSHT, int packetCt, int byteCt, double lastTimeStamp, const char* outputFilename) {
+void summary(avlNode** connBSTRoot, struct node* closedConnHead, oOS_ht_hash_table* oOSHT, int packetCt, int byteCt, double lastTimeStamp, const char* outputFilename) {
 	FILE *file;
 	file = fopen(outputFilename, "w");
 	if(file == NULL) {
       perror("Error opening output file");
    	}		
-	
-	puts("\nParse finished! Analysing trace statistics...");
-	fputs("======================================================================================\n", file);
-	fprintf(file, "* OUTPUT FROM PACKET LOSS ANALYSIS of %s\n", outputFilename);
-	fputs("======================================================================================\n\n", file);
-	
 	int connCt = 0;
 	int openConnCt = 0;
 	struct warningNode* warningHead = NULL;
+	struct node* synMissingList = NULL;
 	int over60sWarningFlag = 0;
+	char ipString[40];
+
 
 	// Delete completed connections
-	struct node* nodePtr = head;
+	struct node* nodePtr = closedConnHead;
 	printf("\nDeleting completed connections... ");
 	while (nodePtr != NULL) {
 		*connBSTRoot = deleteNode(*connBSTRoot, nodePtr->connID);
@@ -215,20 +225,19 @@ void summary(avlNode** connBSTRoot, struct node* head, oOS_ht_hash_table* oOSHT,
 	}
 	puts("Done.\n");
 
-	// Print open connections
-	char ipString[40];
-	puts("\nConnections still open:");
-	fputs("\nConnections still open:\n", file);
-	openConns(connBSTRoot, &warningHead, &connCt, &openConnCt, file, lastTimeStamp);
+
+	puts("\nParse finished! Analysing trace statistics...\n");
+	puts("======================================================================================");
+	printf("* OUTPUT FROM PACKET LOSS ANALYSIS to %s\n", outputFilename);
+	puts("======================================================================================\n");
+	fputs("======================================================================================\n", file);
+	fprintf(file, "* OUTPUT FROM PACKET LOSS ANALYSIS of %s\n", outputFilename);
+	fputs("======================================================================================\n\n", file);
 	
-	if (openConnCt == 0) {
-		puts("None.");
-		fputs("None.\n", file);
-	}
 
 	// Collate missing packets and print to terminal
 	struct heap* h = calloc(1, sizeof(struct heap));
-	unsigned long lastSeqNum;
+	unsigned long lastSeqNum = 0;
 	unsigned long prevSeqNum;
 	unsigned long totalMissingBytes = 0;
 	struct packet* nextOOSPacket = calloc(1, sizeof(struct packet));
@@ -244,24 +253,31 @@ void summary(avlNode** connBSTRoot, struct node* head, oOS_ht_hash_table* oOSHT,
 		// printf("heap size: %d\n", h->size);
 		nextOOSPacket = heap_front(h);
 		// printf("Packet seqnum: %d; Timestamp: %.3f\n", nextOOSPacket->seqNum, nextOOSPacket->timeStamp);
+
 		// Check expected seqNum
-		lastSeqNum = search(*connBSTRoot, oOSHT->items[i]->key)->value->seqNum;
+		if (search(*connBSTRoot, oOSHT->items[i]->key) != NULL) {
+			lastSeqNum = search(*connBSTRoot, oOSHT->items[i]->key)->value->seqNum;
+		}
 		while (h->count != 0) {
 			// printf("Last sequence number: %d \n", lastSeqNum);
 			nextOOSPacket = heap_front(h);
-			if (lastSeqNum == 1) {
+			if (lastSeqNum == 0) {
+				// If not in connBST, SYN is missing
 				totalMissingBytes += nextOOSPacket->seqNum - 1;
 				printf("%d missing bytes between start of connection and seq num %d (incl. SYN phantom byte) at time %.3f\n",
 						nextOOSPacket->seqNum, nextOOSPacket->seqNum, nextOOSPacket->timeStamp);
 				fprintf(file, "%d missing bytes between start of connection and seq num %d (incl. SYN phantom byte) at time %.3f\n",
 						nextOOSPacket->seqNum, nextOOSPacket->seqNum, nextOOSPacket->timeStamp);
 				if (nextOOSPacket->timeStamp < lastTimeStamp - 20)
-					updateWarningNodes(&warningHead, oOSHT->items[i]->key, nextOOSPacket->timeStamp, nextOOSPacket->seqNum);			
+					updateWarningNodes(&warningHead, oOSHT->items[i]->key, nextOOSPacket->timeStamp, nextOOSPacket->seqNum);	
+				// Increment open connection counter because not in connBST but connection is incomplete
+				openConnCt++;
+				updateLinkedList(&synMissingList, oOSHT->items[i]->key);		
 			} else if (lastSeqNum != nextOOSPacket->seqNum) { 
 				totalMissingBytes += nextOOSPacket->seqNum - lastSeqNum;
-				printf("%d missing bytes between seq num %d and seq num %d at time %.3f\n",
+				printf("%d missing bytes between seq num %d and %d at time %.3f\n",
 						nextOOSPacket->seqNum - lastSeqNum, lastSeqNum, nextOOSPacket->seqNum, nextOOSPacket->timeStamp);
-				fprintf(file, "%d missing bytes between seq num %d and seq num %d at time %.3f\n",
+				fprintf(file, "%d missing bytes between seq num %d and %d at time %.3f\n",
 						nextOOSPacket->seqNum - lastSeqNum, lastSeqNum, nextOOSPacket->seqNum, nextOOSPacket->timeStamp);
 				if (nextOOSPacket->timeStamp < lastTimeStamp - 20)
 					updateWarningNodes(&warningHead, oOSHT->items[i]->key, nextOOSPacket->timeStamp, nextOOSPacket->seqNum - lastSeqNum);
@@ -273,24 +289,45 @@ void summary(avlNode** connBSTRoot, struct node* head, oOS_ht_hash_table* oOSHT,
 		
 	}
 
+	// Print open connections
+	puts("\n\nConnections still open:");
+	fputs("\n\nConnections still open:\n", file);
+	openConns(connBSTRoot, &warningHead, &connCt, &openConnCt, file, lastTimeStamp);
+	// Print connections where SYN is missing
+	while (synMissingList != NULL) {
+		IDToString(ipString, synMissingList->connID);
+		printf("%s with packets received but missing SYN packet\n", ipString);
+		fprintf(file, "%s with packets received but missing SYN packet\n", ipString);
+		synMissingList = synMissingList->next;
+	}
+
+
+	if (openConnCt == 0) {
+		puts("None.");
+		fputs("None.\n", file);
+	}
+
 	// Print summary statistics
 	puts("\n\nSummary:");
 	printf("%d packets checked containing a total of %d bytes from %d connections.\n\n", packetCt, byteCt, connCt);
-	printf("%d / %d bytes missing from trace sequence (%.3f%% loss).\n\n", totalMissingBytes, byteCt, totalMissingBytes / (double) byteCt * 100);
-	printf("Subsequent packets from %d open connection(s) could not be analysed.\n\n\n", openConnCt);
-
+	printf("%d / %d bytes missing from trace sequence (%.3f%% loss).\n\n", totalMissingBytes, byteCt + totalMissingBytes, totalMissingBytes / ((double) byteCt + totalMissingBytes) * 100);
+	
 	fputs("======================================================================================\n", file);
 	fputs("\n\nSummary:\n", file);
 	fprintf(file, "%d packets checked containing a total of %d bytes from %d connections.\n\n", packetCt, byteCt, connCt);
-	fprintf(file, "%d / %d bytes missing from trace sequence (%.3f%% loss).\n\n", totalMissingBytes, byteCt, totalMissingBytes / (double) byteCt * 100);
-	fprintf(file, "Subsequent packets from %d open connection(s) could not be analysed.\n\n\n", openConnCt);
+	fprintf(file, "%d / %d bytes missing from trace sequence (%.3f%% loss).\n\n", totalMissingBytes, byteCt + totalMissingBytes, totalMissingBytes / ((double) byteCt + totalMissingBytes) * 100);
+	
+	if (openConnCt) {
+		printf("Subsequent packets from %d open connection(s) could not be analysed.\n\n", openConnCt);
+		fprintf(file, "Subsequent packets from %d open connection(s) could not be analysed.\n\n", openConnCt);
+	}
 
 	// Print warning for missing bytes (i) 60s before trace end and (ii) 20s before trace end
-	puts("======================================================================================");
-	fputs("======================================================================================\n", file);
+	puts("\n======================================================================================");
+	fputs("\n======================================================================================\n", file);
 	if (warningHead != NULL) {
-		puts("* Warning! Packets missing/connections open since before last 20 s of trace!\n");
-		fputs("* Warning! Packets missing/connections open since before last 20 s of trace!\n", file);
+		puts("* Warning! Packet(s) missing or connection(s) open since before last 20 s of trace!\n");
+		fputs("* Warning! Packet(s) missing or connection(s) open since before last 20 s of trace!\n", file);
 		while (warningHead != NULL) {
 			IDToString(ipString, warningHead->connID);
 			if (warningHead->bytesMissing == 0) {
@@ -305,8 +342,8 @@ void summary(avlNode** connBSTRoot, struct node* head, oOS_ht_hash_table* oOSHT,
 			warningHead = warningHead->next;
 		}
 		if (over60sWarningFlag) {
-			puts("*\n* Warning! Packets are missing since before last 60 s of trace!\n*\n");
-			fputs("*\n* Warning! Packets are missing since before last 60 s of trace!\n*\n\n", file);
+			puts("*\n* Warning! Packet(s) missing or connection(s) open since before last 60 s of trace!\n*\n");
+			fputs("*\n* Warning! Packet(s) missing or connection(s) open since before last 60 s of trace!\n*\n\n", file);
 		}
 	} else {
 		puts("* No packets missing before last 20 s of trace.");
@@ -357,7 +394,7 @@ void parse(const char* filename) {
 //Initialize data structures for containing connections and out-of-sequence packet buffer
 	avlNode* connBSTRoot = NULL;
 	oOS_ht_hash_table* oOSHT = oOS_ht_new();
-	struct node* head = NULL;
+	struct node* closedConnHead = NULL;
 
 	do {
 		int c = fgetc(file);
@@ -427,21 +464,27 @@ void parse(const char* filename) {
 				
 				case 9 :
 					currPacket.syn = atoi(buff);
+					byteCt += currPacket.syn;
 					break;
 				
 				case 11 :
 					currPacket.fin = atoi(buff);
+					byteCt += currPacket.fin;
 					break;
 
 				case 13 :
 					currPacket.seqNum = atoi(buff);
+					break;
+
+				case 14 :
+					currPacket.connState = atoi(buff);
 			}
 			if (c == '\n') {
 				if (dataComplete) {
-					connClosed = updateSeqNums(connBSTRoot, oOSHT, currPacket);
+					connClosed = updateSeqNums(&connBSTRoot, oOSHT, currPacket);
 				}
 				if (connClosed) {
-					updateClosedConns(&head, currPacket.connID);
+					updateLinkedList(&closedConnHead, currPacket.connID);
 					connClosed = 0;
 				}
 				lineCt = 0;
@@ -467,10 +510,9 @@ void parse(const char* filename) {
 	// Create the output file name XXX-PacketLoss.txt
 	strcat(outputFile, filename);
 	int len = strlen(outputFile);
-	for (int i = len - 1; i > len - 5; i--) outputFile[i] = 0; //delete the .txt suffix
-	puts(outputFile);
+	for (int i = len - 1; i > len - 5; i--) outputFile[i] = 0; //delete the ".txt" suffix
 	strcat(outputFile, outputSuffix);
-	summary(connBSTRoot, head, oOSHT, packetCt, byteCt, lastTimeStamp, outputFile);
+	summary(&connBSTRoot, closedConnHead, oOSHT, packetCt, byteCt, lastTimeStamp, outputFile);
 	puts("summary exited!");
 	fclose(file);
 
@@ -480,11 +522,7 @@ void parse(const char* filename) {
 int main(int argc, char *argv[]) {
     puts("program started!");
 	char defaultFile[] = "trace-small.txt";
-    unsigned int packetCounter = 0;
-	unsigned int byteCounter = 0;
-	unsigned int connectionCounter = 0;
-	unsigned int missingBytes = 0;
-
+    
 	const char* filename = (argc > 1) ? argv[1] : defaultFile;
 	puts(filename);
 

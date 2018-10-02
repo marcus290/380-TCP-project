@@ -266,7 +266,7 @@ oOS_ht_hash_table* oOS_ht_new() {
 static void oOS_ht_del_item(oOS_ht_item* i) {
     puts("ht del item entered");
     int testitemnull = (i->value == NULL);
-    printf("test item null : %d; test item seqNum: %d, test item timestamp %.3f\n", testitemnull, heap_front(i->value)->seqNum, heap_front(i->value)->timeStamp);
+    printf("test item null : %d; test item seqNum: %d, test item timestamp %.3f, from conn %llx\n", testitemnull, heap_front(i->value)->seqNum, heap_front(i->value)->timeStamp, i->key);
     heap_term(i->value);
     free(i->value);
     puts("freed i->value");

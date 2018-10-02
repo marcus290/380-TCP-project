@@ -16,5 +16,5 @@ typedef struct {
 } oOS_avlNode;
 
 avlNode* search(avlNode* root, uint64_t key);
-avlNode* insert(avlNode* node, int key);
-avlNode* deleteNode(avlNode* root, int key);
+avlNode* insert(avlNode* node, uint64_t key, struct connStatus* value);
+avlNode* deleteNode(avlNode* root, uint64_t key);
