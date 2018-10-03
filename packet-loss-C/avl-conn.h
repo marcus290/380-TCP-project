@@ -1,4 +1,7 @@
-/** AVL binary search tree in C, adapted from https://www.geeksforgeeks.org */
+/** AVL binary search tree for storing open connections in C, adapted from 
+ * https://www.geeksforgeeks.org, provided under a Creative Commons Attribution-ShareAlike  
+ * 4.0 International (CC BY-SA 4.0) license https://creativecommons.org/licenses/by-sa/4.0/.
+ */
 
 typedef struct avl_node avlNode;
 
@@ -9,11 +12,6 @@ struct avl_node{
     int height;
     struct connStatus* value;
 };
-
-typedef struct {
-    uint64_t key;
-    struct heap* value;
-} oOS_avlNode;
 
 avlNode* search(avlNode* root, uint64_t key);
 avlNode* insert(avlNode* node, uint64_t key, struct connStatus* value);

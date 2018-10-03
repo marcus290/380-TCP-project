@@ -2,8 +2,8 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "hash-table.h"
-#include "avl.h"
+#include "avl-conn.h"
+#include "avl-oos.h"
 #include "min-heap.h"
 #include "PacketLoss.h"
 
@@ -45,26 +45,25 @@ void IDToString(char *str, uint64_t connID) {
 /**
  * Function for handling out of sequence packets from the trace stream. 
  */	
-void storeOOSPacket(oOS_ht_hash_table* oOSHT, struct packet currPacket) {
-
+void storeOOSPacket(oos_avlNode** oosBSTRoot, struct packet currPacket) {
 	struct packet* pkt = calloc(1, sizeof(struct packet));
 	pkt->seqNum = currPacket.seqNum;
 	pkt->timeStamp = currPacket.timeStamp;
-	//if (currPacket.timeStamp == 0) {puts("Error: Bad packet and invalid timestamp!");exit(0);}
 	pkt->payloadSize = currPacket.payloadSize;
 	pkt->syn = currPacket.syn;
 	pkt->fin = currPacket.fin;
+	pkt->connState = currPacket.connState;
 	pkt->connID = currPacket.connID;
 
 	// If connection is not already in oOS buffer, initialize heap and add key(connID) and value(heap):
-	if (oOS_ht_search(oOSHT, currPacket.connID) == 0) {
+	if (oos_search(*oosBSTRoot, currPacket.connID) == NULL) {
 		struct heap* heap = calloc(1, sizeof(struct heap));
 		heap_init(heap);
 		heap_push(heap, pkt);
-		oOS_ht_insert(oOSHT, currPacket.connID, heap);
+		*oosBSTRoot = oos_insert(*oosBSTRoot, currPacket.connID, heap);
 	// If connection already in oOS buffer
-	} else if (oOS_ht_search(oOSHT, currPacket.connID) != 0) {
-		struct heap* h = oOS_ht_search(oOSHT, currPacket.connID);
+	} else {
+		struct heap* h = oos_search(*oosBSTRoot, currPacket.connID)->value;
 		heap_push(h, pkt);
 		//printf("top of heap is seqNum %d\n", heap_front(h)->seqNum);
 	}
@@ -73,43 +72,45 @@ void storeOOSPacket(oOS_ht_hash_table* oOSHT, struct packet currPacket) {
 /**
  * Function for updating the sequence number by checking the out-of-sequence packets buffer. 
  */	
-int updateSeqNumsFromBuffer(avlNode** connBSTRoot, oOS_ht_hash_table* oOSHT, struct packet currPacket) {
-	struct heap* connOOSHeap = oOS_ht_search(oOSHT, currPacket.connID);
+int updateSeqNumsFromBuffer(avlNode** connBSTRoot, oos_avlNode** oosBSTRoot, struct packet currPacket) {
 	int connClosed = 0;
-	if (connOOSHeap != 0) {
-		struct packet* nextOOSPacket = heap_front(connOOSHeap);
-		unsigned long nextOOSSeqNum = nextOOSPacket->seqNum;
-		unsigned long prevOOSSeqNum;
-		while(nextOOSSeqNum == search(*connBSTRoot, currPacket.connID)->value->seqNum && connOOSHeap->count) { // If the buffer contains the next packet
-			search(*connBSTRoot, currPacket.connID)->value->seqNum = nextOOSSeqNum + nextOOSPacket->payloadSize + nextOOSPacket->fin;
-			search(*connBSTRoot, currPacket.connID)->value->timeStamp = nextOOSPacket->timeStamp;
-			if (nextOOSPacket->fin || (currPacket.payloadSize == 0 && currPacket.connState == 2))
-				connClosed = 1; // If the sequenced packet from the buffer is FIN, close the connection
-			//printf("updateSeqNumsFromBuffer() assigned new seqNum %d at time %.3f for conn %llx!\n", 
-					// nextOOSSeqNum + nextOOSPacket->payloadSize + nextOOSPacket->fin, currPacket.timeStamp,
-					// search(*connBSTRoot, currPacket.connID)->key);
-			do {
-				heap_pop(connOOSHeap);
-				if (connOOSHeap->count == 0) break;
-				prevOOSSeqNum = nextOOSSeqNum;
-				nextOOSPacket = heap_front(connOOSHeap);
-				nextOOSSeqNum = nextOOSPacket->seqNum;
-				//printf("prevOOSSeqNum: %d\nnextOOSSeqNum: %d\n", prevOOSSeqNum, nextOOSSeqNum);
-			} while (prevOOSSeqNum == nextOOSSeqNum); // Check for duplicate packets in buffer and remove
-		}
-		// Clean up and delete the OOS buffer if no more OOS packets or connection closed
-		if (connClosed || oOS_ht_search(oOSHT, currPacket.connID)->count == 0) {
-			// If connection closed or buffer is empty, remove the OOS buffer
-			oOS_ht_delete(oOSHT, currPacket.connID);
-			//puts("after oOS delete");
-		}
-		
-	} 
+	if (oos_search(*oosBSTRoot, currPacket.connID) == NULL || oos_search(*oosBSTRoot, currPacket.connID)->value->count == 0) {
+		return connClosed;
+	}
+
+	struct heap* connOOSHeap = oos_search(*oosBSTRoot, currPacket.connID)->value;
+	struct packet* nextOOSPacket = heap_front(connOOSHeap);
+	unsigned long nextOOSSeqNum = nextOOSPacket->seqNum;
+	unsigned long prevOOSSeqNum;
+	while(nextOOSSeqNum == search(*connBSTRoot, currPacket.connID)->value->seqNum && connOOSHeap->count) { // If the buffer contains the next packet
+		search(*connBSTRoot, currPacket.connID)->value->seqNum = nextOOSSeqNum + nextOOSPacket->payloadSize + nextOOSPacket->fin;
+		search(*connBSTRoot, currPacket.connID)->value->timeStamp = nextOOSPacket->timeStamp;
+		if (nextOOSPacket->fin || (currPacket.payloadSize == 0 && currPacket.connState == 2))
+			connClosed = 1; // If the sequenced packet from the buffer is FIN, close the connection
+		//printf("updateSeqNumsFromBuffer() assigned new seqNum %d at time %.3f for conn %llx!\n", 
+				// nextOOSSeqNum + nextOOSPacket->payloadSize + nextOOSPacket->fin, currPacket.timeStamp,
+				// search(*connBSTRoot, currPacket.connID)->key);
+		do {
+			heap_pop(connOOSHeap);
+			if (connOOSHeap->count == 0) break;
+			prevOOSSeqNum = nextOOSSeqNum;
+			nextOOSPacket = heap_front(connOOSHeap);
+			nextOOSSeqNum = nextOOSPacket->seqNum;
+			//printf("prevOOSSeqNum: %d\nnextOOSSeqNum: %d\n", prevOOSSeqNum, nextOOSSeqNum);
+		} while (prevOOSSeqNum == nextOOSSeqNum); // Check for duplicate packets in buffer and remove
+	}
+	// Clean up and delete the OOS buffer if no more OOS packets or connection closed
+	if (connClosed || oos_search(*oosBSTRoot, currPacket.connID)->value->count == 0) {
+		// If connection closed or buffer is empty, remove the OOS buffer
+		*oosBSTRoot = oos_deleteNode(*oosBSTRoot, currPacket.connID);
+		//puts("after oOS delete");
+	}
+		 
 	return connClosed;
 }
 
 /**
- * Function for updating the linked list of closed connections. 
+ * Function for adding to a linked list of connections. 
  */	
 void updateLinkedList(struct node** head, uint64_t connID) {
 	struct node* newNode = calloc(1, sizeof(struct node));
@@ -123,19 +124,10 @@ void updateLinkedList(struct node** head, uint64_t connID) {
  * If closing the connection, connection is recorded in closed connections list and connection and associated outOfSeq packets are deleted
  * @param line String array from a line of the trace file
  */	
-int updateSeqNums(avlNode** connBSTRoot, oOS_ht_hash_table* oOSHT, struct packet currPacket) {
+int updateSeqNums(avlNode** connBSTRoot, oos_avlNode** oosBSTRoot, struct packet currPacket) {
 	int connClosed = 0;
 	
 	//printf("Handling packet no. %d at time %.5f of connection %llx\n", currPacket.seqNum, currPacket.timeStamp, currPacket.connID);
-	
-	// if (currPacket.connID == (uint64_t) 0xd1f400005abc8LL) {
-	// int test = (search(*connBSTRoot, currPacket.connID) == NULL && currPacket.syn);
-	// printf("test 1st branch %d\n", test);
-	// test = (search(*connBSTRoot, currPacket.connID) != NULL && search(*connBSTRoot, currPacket.connID)->value->seqNum == currPacket.seqNum);
-	// printf("test 2nd branch %d\n", test);
-	// test = ((search(*connBSTRoot, currPacket.connID) == NULL && !currPacket.syn) || search(*connBSTRoot, currPacket.connID)->value->seqNum < currPacket.seqNum);
-	// printf("test 3rd branch %d\n", test);
-	// }
 	
 	// If packet is from new connection:
 	if (search(*connBSTRoot, currPacket.connID) == NULL && currPacket.syn) {
@@ -143,24 +135,22 @@ int updateSeqNums(avlNode** connBSTRoot, oOS_ht_hash_table* oOSHT, struct packet
 		*connBSTRoot = insert(*connBSTRoot, currPacket.connID, newConn);
 		newConn->seqNum = 1;
 		newConn->timeStamp = currPacket.timeStamp;
-		//if (currPacket.timeStamp == 0) {puts("Error: Bad packet and invalid timestamp!");exit(0);}
-		connClosed = updateSeqNumsFromBuffer(connBSTRoot, oOSHT, currPacket);
+		connClosed = updateSeqNumsFromBuffer(connBSTRoot, oosBSTRoot, currPacket);
 	// Else if packet is from open connection and matches next expected sequence number
 	} else if (search(*connBSTRoot, currPacket.connID) != NULL && search(*connBSTRoot, currPacket.connID)->value->seqNum == currPacket.seqNum) {
 		search(*connBSTRoot, currPacket.connID)->value->seqNum = currPacket.seqNum + currPacket.payloadSize + currPacket.fin;
 		search(*connBSTRoot, currPacket.connID)->value->timeStamp = currPacket.timeStamp;
 		//printf("Assigned seqnum %d, at time %.3f, of conn %llx\n", search(*connBSTRoot, currPacket.connID)->value->seqNum, search(*connBSTRoot, currPacket.connID)->value->timeStamp, search(*connBSTRoot, currPacket.connID)->key);
-		connClosed = updateSeqNumsFromBuffer(connBSTRoot, oOSHT, currPacket);
-		// If connection closed from current packet, clean up any packets from the OOS buffer
+		connClosed = updateSeqNumsFromBuffer(connBSTRoot, oosBSTRoot, currPacket);
 		if (currPacket.fin || (currPacket.payloadSize == 0 && currPacket.connState == 2))
 			connClosed = 1;
 	
 	// Else if packet is not in connections record (and not SYN) or has seq num greater than the current expected seq num, 
-	//and is not a phantom bit.
+	//and is not a 0-bit packet (the FIN packet and FIN ACK packet are included).
 	} else if ((search(*connBSTRoot, currPacket.connID) == NULL || search(*connBSTRoot, currPacket.connID)->value->seqNum < currPacket.seqNum) 
-				&& !(currPacket.payloadSize == 0 && currPacket.connState != 2)) {
+				&& (currPacket.payloadSize != 0 || currPacket.connState == 2 || currPacket.fin)) {
 		// Store packet in buffer if it has a later sequence number
-		storeOOSPacket(oOSHT, currPacket);
+		storeOOSPacket(oosBSTRoot, currPacket);
 	}
 	return connClosed;
 }
@@ -203,7 +193,7 @@ void openConns(avlNode** root, struct warningNode** warningHead, int* connCt, in
 /**
  * Function for outputting the summary statistics.
  */
-void summary(avlNode** connBSTRoot, struct node* closedConnHead, oOS_ht_hash_table* oOSHT, int packetCt, int byteCt, double lastTimeStamp, const char* outputFilename) {
+void summary(avlNode** connBSTRoot, struct node* closedConnHead, oos_avlNode** oosBSTRoot, int packetCt, int byteCt, double lastTimeStamp, const char* outputFilename) {
 	FILE *file;
 	file = fopen(outputFilename, "w");
 	if(file == NULL) {
@@ -221,20 +211,20 @@ void summary(avlNode** connBSTRoot, struct node* closedConnHead, oOS_ht_hash_tab
 	struct node* nodePtr = closedConnHead;
 	printf("\nDeleting completed connections... ");
 	while (nodePtr != NULL) {
+		if (search(*connBSTRoot, nodePtr->connID) != NULL) connCt++;
 		*connBSTRoot = deleteNode(*connBSTRoot, nodePtr->connID);
-		connCt++;
 		nodePtr = nodePtr->next;
 	}
 	puts("Done.\n");
-
+	
 
 	puts("\nParse finished! Analysing trace statistics...\n");
 	puts("======================================================================================");
 	printf("* OUTPUT FROM PACKET LOSS ANALYSIS to %s\n", outputFilename);
-	puts("======================================================================================\n");
+	puts("======================================================================================");
 	fputs("======================================================================================\n", file);
 	fprintf(file, "* OUTPUT FROM PACKET LOSS ANALYSIS of %s\n", outputFilename);
-	fputs("======================================================================================\n\n", file);
+	fputs("======================================================================================\n", file);
 	
 
 	// Collate missing packets and print to terminal
@@ -243,22 +233,21 @@ void summary(avlNode** connBSTRoot, struct node* closedConnHead, oOS_ht_hash_tab
 	unsigned long prevSeqNum;
 	unsigned long totalMissingBytes = 0;
 	struct packet* nextOOSPacket = calloc(1, sizeof(struct packet));
-	// printf("oOSHT count: %d\n", oOSHT->count);
-	// printf("oOSHT size: %d\n", oOSHT->size);
-	for (int i = 0; i < oOSHT->size; i++) {
-		if (oOSHT->items[i] == NULL || oOSHT->items[i]->key == 0L) continue;
-		IDToString(ipString, oOSHT->items[i]->key);
-		printf("\nBytes missing from %s: \n", ipString);
-		fprintf(file, "\nBytes missing from %s: \n", ipString);
-		h = oOSHT->items[i]->value;
+	oos_avlNode* oosBSTPtr = *oosBSTRoot;
+	
+	while (oosBSTPtr != NULL) {
+		IDToString(ipString, oosBSTPtr->key);
+		printf("\n\nBytes missing from %s: \n", ipString);
+		fprintf(file, "\n\nBytes missing from %s: \n", ipString);
+		h = oosBSTPtr->value;
 		// printf("heap count: %d\n", h->count);
 		// printf("heap size: %d\n", h->size);
 		nextOOSPacket = heap_front(h);
 		// printf("Packet seqnum: %d; Timestamp: %.3f\n", nextOOSPacket->seqNum, nextOOSPacket->timeStamp);
 
 		// Check expected seqNum
-		if (search(*connBSTRoot, oOSHT->items[i]->key) != NULL) {
-			lastSeqNum = search(*connBSTRoot, oOSHT->items[i]->key)->value->seqNum;
+		if (search(*connBSTRoot, oosBSTPtr->key) != NULL) {
+			lastSeqNum = search(*connBSTRoot, oosBSTPtr->key)->value->seqNum;
 		}
 		while (h->count != 0) {
 			// printf("Last sequence number: %d \n", lastSeqNum);
@@ -271,10 +260,11 @@ void summary(avlNode** connBSTRoot, struct node* closedConnHead, oOS_ht_hash_tab
 				fprintf(file, "%d missing bytes between start of connection and seq num %d (incl. SYN phantom byte) at time %.3f\n",
 						nextOOSPacket->seqNum, nextOOSPacket->seqNum, nextOOSPacket->timeStamp);
 				if (nextOOSPacket->timeStamp < lastTimeStamp - 20)
-					updateWarningNodes(&warningHead, oOSHT->items[i]->key, nextOOSPacket->timeStamp, nextOOSPacket->seqNum);	
-				// Increment open connection counter because not in connBST but connection is incomplete
+					updateWarningNodes(&warningHead, oosBSTPtr->key, nextOOSPacket->timeStamp, nextOOSPacket->seqNum);	
+				// Increment connection counters because not in connBST but connection is incomplete
 				openConnCt++;
-				updateLinkedList(&synMissingList, oOSHT->items[i]->key);		
+				connCt++;
+				updateLinkedList(&synMissingList, oosBSTPtr->key);		
 			} else if (lastSeqNum < nextOOSPacket->seqNum) { 
 				totalMissingBytes += nextOOSPacket->seqNum - lastSeqNum;
 				printf("%d missing bytes between seq num %d and %d at time %.3f\n",
@@ -282,7 +272,7 @@ void summary(avlNode** connBSTRoot, struct node* closedConnHead, oOS_ht_hash_tab
 				fprintf(file, "%d missing bytes between seq num %d and %d at time %.3f\n",
 						nextOOSPacket->seqNum - lastSeqNum, lastSeqNum, nextOOSPacket->seqNum, nextOOSPacket->timeStamp);
 				if (nextOOSPacket->timeStamp < lastTimeStamp - 20)
-					updateWarningNodes(&warningHead, oOSHT->items[i]->key, nextOOSPacket->timeStamp, nextOOSPacket->seqNum - lastSeqNum);
+					updateWarningNodes(&warningHead, oosBSTPtr->key, nextOOSPacket->timeStamp, nextOOSPacket->seqNum - lastSeqNum);
 				fprintf(file, "lastseq before %d; nextOOSPacket->seqNum: %d; nextOOSPacket->payloadSize: %d\n", lastSeqNum, nextOOSPacket->seqNum, nextOOSPacket->payloadSize);
 			}
 			if (lastSeqNum < nextOOSPacket->seqNum + nextOOSPacket->payloadSize + nextOOSPacket->fin)
@@ -291,7 +281,7 @@ void summary(avlNode** connBSTRoot, struct node* closedConnHead, oOS_ht_hash_tab
 			//puts("finished while loop (before pop)");
 			heap_pop(h);
 		}
-		
+		oosBSTPtr = oos_deleteNode(oosBSTPtr, oosBSTPtr->key);
 	}
 
 	// Print open connections
@@ -305,7 +295,6 @@ void summary(avlNode** connBSTRoot, struct node* closedConnHead, oOS_ht_hash_tab
 		fprintf(file, "%s with packets received but missing SYN packet\n", ipString);
 		synMissingList = synMissingList->next;
 	}
-
 
 	if (openConnCt == 0) {
 		puts("None.");
@@ -398,9 +387,9 @@ void parse(const char* filename) {
 	
 //Initialize data structures for containing connections and out-of-sequence packet buffer
 	avlNode* connBSTRoot = NULL;
-	oOS_ht_hash_table* oOSHT = oOS_ht_new();
+	oos_avlNode* oosBSTRoot = NULL;
 	struct node* closedConnHead = NULL;
-
+	puts("initialised in parse!");
 	do {
 		int c = fgetc(file);
 		if(c == EOF) 
@@ -486,7 +475,7 @@ void parse(const char* filename) {
 			}
 			if (c == '\n') {
 				if (dataComplete) {
-					connClosed = updateSeqNums(&connBSTRoot, oOSHT, currPacket);
+					connClosed = updateSeqNums(&connBSTRoot, &oosBSTRoot, currPacket);
 				}
 				if (connClosed) {
 					updateLinkedList(&closedConnHead, currPacket.connID);
@@ -517,8 +506,7 @@ void parse(const char* filename) {
 	int len = strlen(outputFile);
 	for (int i = len - 1; i > len - 5; i--) outputFile[i] = 0; //delete the ".txt" suffix
 	strcat(outputFile, outputSuffix);
-	summary(&connBSTRoot, closedConnHead, oOSHT, packetCt, byteCt, lastTimeStamp, outputFile);
-	puts("summary exited!");
+	summary(&connBSTRoot, closedConnHead, &oosBSTRoot, packetCt, byteCt, lastTimeStamp, outputFile);
 	fclose(file);
 
 }

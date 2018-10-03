@@ -1,9 +1,12 @@
-/** AVL binary search tree in C, adapted from https://www.geeksforgeeks.org */
+/** AVL binary search tree for buffering out-of-sequence packets in C, adapted from 
+ * https://www.geeksforgeeks.org, provided under a Creative Commons Attribution-ShareAlike  
+ * 4.0 International (CC BY-SA 4.0) license https://creativecommons.org/licenses/by-sa/4.0/.
+ */
 
 #include <stdlib.h>
 #include <stdint.h>
 
-#include "avl.h"
+#include "avl-oos.h"
 #include "PacketLoss.h"
 
 // // A utility function to get maximum of two integers 
@@ -13,7 +16,7 @@
 // } 
 
 // C function to search a given key in a given BST 
-avlNode* search(avlNode* root, uint64_t key) 
+oos_avlNode* oos_search(oos_avlNode* root, uint64_t key) 
 { 
     // Base Cases: root is null or key is present at root 
     if (root == NULL || root->key == key) 
@@ -21,16 +24,16 @@ avlNode* search(avlNode* root, uint64_t key)
      
     // Key is greater than root's key 
     if (root->key < key) 
-       return search(root->right, key); 
+       return oos_search(root->right, key); 
   
     // Key is smaller than root's key 
-    return search(root->left, key); 
+    return oos_search(root->left, key); 
 } 
 
 // A utility function to create a new BST node 
-avlNode* newNode(uint64_t item, struct connStatus* value) 
+oos_avlNode* oos_newNode(uint64_t item, struct heap* value) 
 { 
-    avlNode* temp =  calloc(1, sizeof(avlNode)); 
+    oos_avlNode* temp =  calloc(1, sizeof(oos_avlNode)); 
     temp->key = item; 
     temp->left = temp->right = NULL; 
     temp->height = 1;
@@ -39,19 +42,19 @@ avlNode* newNode(uint64_t item, struct connStatus* value)
 } 
 
 // A utility function to do inorder traversal of BST 
-void inorder(avlNode* root) 
+void oos_inorder(oos_avlNode* root) 
 { 
     if (root != NULL) 
     { 
-        inorder(root->left); 
+        oos_inorder(root->left); 
         printf("%llx \n", root->key); 
-        inorder(root->right); 
+        oos_inorder(root->right); 
     } 
 } 
    
 
 // A utility function to get the height of the tree 
-int height(avlNode* N) 
+int oos_height(oos_avlNode* N) 
 { 
     if (N == NULL) 
         return 0; 
@@ -59,18 +62,18 @@ int height(avlNode* N)
 } 
 
 // A utility function to right rotate subtree rooted with y 
-avlNode* rightRotate(avlNode* y) 
+oos_avlNode* oos_rightRotate(oos_avlNode* y) 
 { 
-    avlNode* x = y->left; 
-    avlNode* T2 = x->right; 
+    oos_avlNode* x = y->left; 
+    oos_avlNode* T2 = x->right; 
   
     // Perform rotation 
     x->right = y; 
     y->left = T2; 
   
     // Update heights 
-    y->height = max(height(y->left), height(y->right))+1; 
-    x->height = max(height(x->left), height(x->right))+1; 
+    y->height = max(oos_height(y->left), oos_height(y->right))+1; 
+    x->height = max(oos_height(x->left), oos_height(x->right))+1; 
   
     // Return new root 
     return x; 
@@ -78,77 +81,77 @@ avlNode* rightRotate(avlNode* y)
 
 
 // A utility function to left rotate subtree rooted with x 
-avlNode* leftRotate(avlNode* x) 
+oos_avlNode* oos_leftRotate(oos_avlNode* x) 
 { 
-    avlNode* y = x->right; 
-    avlNode* T2 = y->left; 
+    oos_avlNode* y = x->right; 
+    oos_avlNode* T2 = y->left; 
   
     // Perform rotation 
     y->left = x; 
     x->right = T2; 
   
     //  Update heights 
-    x->height = max(height(x->left), height(x->right))+1; 
-    y->height = max(height(y->left), height(y->right))+1; 
+    x->height = max(oos_height(x->left), oos_height(x->right))+1; 
+    y->height = max(oos_height(y->left), oos_height(y->right))+1; 
   
     // Return new root 
     return y; 
 } 
 
 // Get Balance factor of node N 
-int getBalance(avlNode* N) 
+int oos_getBalance(oos_avlNode* N) 
 { 
     if (N == NULL) 
         return 0; 
-    return height(N->left) - height(N->right); 
+    return oos_height(N->left) - oos_height(N->right); 
 } 
 
 /* A utility function to insert a new node with given key in BST */
-avlNode* insert(avlNode* node, uint64_t key, struct connStatus* value) 
+oos_avlNode* oos_insert(oos_avlNode* node, uint64_t key, struct heap* value) 
 { 
     /* 1.  Perform the normal BST insertion */
     if (node == NULL) 
-        return(newNode(key, value)); 
+        return(oos_newNode(key, value)); 
   
     if (key < node->key) 
-        node->left  = insert(node->left, key, value); 
+        node->left  = oos_insert(node->left, key, value); 
     else if (key > node->key) 
-        node->right = insert(node->right, key, value); 
+        node->right = oos_insert(node->right, key, value); 
     else // Equal keys are not allowed in BST 
         return node; 
   
     /* 2. Update height of this ancestor node */
-    node->height = 1 + max(height(node->left), 
-                           height(node->right)); 
+    node->height = 1 + max(oos_height(node->left), 
+                           oos_height(node->right)); 
   
     /* 3. Get the balance factor of this ancestor 
           node to check whether this node became 
           unbalanced */
-    int balance = getBalance(node); 
+    int balance = oos_getBalance(node); 
   
     // If this node becomes unbalanced, then 
     // there are 4 cases 
   
     // Left Left Case 
     if (balance > 1 && key < node->left->key) 
-        return rightRotate(node); 
+        return oos_rightRotate(node); 
   
     // Right Right Case 
     if (balance < -1 && key > node->right->key) 
-        return leftRotate(node); 
+        return oos_leftRotate(node); 
   
     // Left Right Case 
     if (balance > 1 && key > node->left->key) 
     { 
-        node->left =  leftRotate(node->left); 
-        return rightRotate(node); 
+        node->left = oos_leftRotate(node->left); 
+        return oos_rightRotate(node); 
     } 
   
     // Right Left Case 
     if (balance < -1 && key < node->right->key) 
     { 
-        node->right = rightRotate(node->right); 
-        return leftRotate(node); 
+        node->right = oos_rightRotate(node->right); 
+        return oos_leftRotate(node); 
     } 
   
     /* return the (unchanged) node pointer */
@@ -159,9 +162,9 @@ avlNode* insert(avlNode* node, uint64_t key, struct connStatus* value)
    node with minimum key value found in that tree. 
    Note that the entire tree does not need to be 
    searched. */
-avlNode* minValueNode(avlNode* node) 
+oos_avlNode* oos_minValueNode(oos_avlNode* node) 
 { 
-    avlNode* current = node; 
+    oos_avlNode* current = node; 
   
     /* loop down to find the leftmost leaf */
     while (current->left != NULL) 
@@ -173,7 +176,7 @@ avlNode* minValueNode(avlNode* node)
 // Recursive function to delete a node with given key 
 // from subtree with given root. It returns root of 
 // the modified subtree. 
-avlNode* deleteNode(avlNode* root, uint64_t key) 
+oos_avlNode* oos_deleteNode(oos_avlNode* root, uint64_t key) 
 { 
     // STEP 1: PERFORM STANDARD BST DELETE 
 //   if (key == (uint64_t) 0xf1f400005ba81LL && search(root, (uint64_t) 0x101f4000089defLL) != NULL) {
@@ -187,12 +190,12 @@ avlNode* deleteNode(avlNode* root, uint64_t key)
     // If the key to be deleted is smaller than the 
     // root's key, then it lies in left subtree 
     if ( key < root->key ) 
-        root->left = deleteNode(root->left, key); 
+        root->left = oos_deleteNode(root->left, key); 
   
     // If the key to be deleted is greater than the 
     // root's key, then it lies in right subtree 
     else if( key > root->key ) 
-        root->right = deleteNode(root->right, key); 
+        root->right = oos_deleteNode(root->right, key); 
   
     // if key is same as root's key, then This is 
     // the node to be deleted 
@@ -201,7 +204,7 @@ avlNode* deleteNode(avlNode* root, uint64_t key)
         // node with only one child or no child 
         if( (root->left == NULL) || (root->right == NULL) ) 
         { 
-            avlNode* temp = root->left ? root->left : root->right; 
+            oos_avlNode* temp = root->left ? root->left : root->right; 
   
             // No child case 
             if (temp == NULL) 
@@ -218,7 +221,7 @@ avlNode* deleteNode(avlNode* root, uint64_t key)
         { 
             // node with two children: Get the inorder 
             // successor (smallest in the right subtree) 
-            avlNode* temp = minValueNode(root->right); 
+            oos_avlNode* temp = oos_minValueNode(root->right); 
   
             // Copy the inorder successor's data to this node 
             root->key = temp->key; 
@@ -226,7 +229,7 @@ avlNode* deleteNode(avlNode* root, uint64_t key)
             root->value = temp->value;
   
             // Delete the inorder successor 
-            root->right = deleteNode(root->right, temp->key); 
+            root->right = oos_deleteNode(root->right, temp->key); 
         } 
     } 
   
@@ -239,35 +242,35 @@ avlNode* deleteNode(avlNode* root, uint64_t key)
 //         }
         
     // STEP 2: UPDATE HEIGHT OF THE CURRENT NODE 
-    root->height = 1 + max(height(root->left), 
-                           height(root->right)); 
+    root->height = 1 + max(oos_height(root->left), 
+                           oos_height(root->right)); 
   
     // STEP 3: GET THE BALANCE FACTOR OF THIS NODE (to 
     // check whether this node became unbalanced) 
-    int balance = getBalance(root); 
+    int balance = oos_getBalance(root); 
   
     // If this node becomes unbalanced, then there are 4 cases 
   
     // Left Left Case 
-    if (balance > 1 && getBalance(root->left) >= 0) 
-        return rightRotate(root); 
+    if (balance > 1 && oos_getBalance(root->left) >= 0) 
+        return oos_rightRotate(root); 
   
     // Left Right Case 
-    if (balance > 1 && getBalance(root->left) < 0) 
+    if (balance > 1 && oos_getBalance(root->left) < 0) 
     { 
-        root->left =  leftRotate(root->left); 
-        return rightRotate(root); 
+        root->left =  oos_leftRotate(root->left); 
+        return oos_rightRotate(root); 
     } 
   
     // Right Right Case 
-    if (balance < -1 && getBalance(root->right) <= 0) 
-        return leftRotate(root); 
+    if (balance < -1 && oos_getBalance(root->right) <= 0) 
+        return oos_leftRotate(root); 
   
     // Right Left Case 
-    if (balance < -1 && getBalance(root->right) > 0) 
+    if (balance < -1 && oos_getBalance(root->right) > 0) 
     { 
-        root->right = rightRotate(root->right); 
-        return leftRotate(root); 
+        root->right = oos_rightRotate(root->right); 
+        return oos_leftRotate(root); 
     } 
   
     return root; 
