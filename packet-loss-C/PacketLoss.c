@@ -321,7 +321,7 @@ void summary(avlNode** connBSTRoot, struct node* closedConnHead, oos_avlNode** o
 	fputs("\n======================================================================================\n", file);
 	if (warningHead != NULL) {
 		puts("* Warning! Packet(s) missing or connection(s) open since before last 20 s of trace!\n");
-		fputs("* Warning! Packet(s) missing or connection(s) open since before last 20 s of trace!\n", file);
+		fputs("* Warning! Packet(s) missing or connection(s) open since before last 20 s of trace!\n\n", file);
 		while (warningHead != NULL) {
 			IDToString(ipString, warningHead->connID);
 			if (warningHead->bytesMissing == 0) {
@@ -336,7 +336,7 @@ void summary(avlNode** connBSTRoot, struct node* closedConnHead, oos_avlNode** o
 			warningHead = warningHead->next;
 		}
 		if (over60sWarningFlag) {
-			puts("*\n* Warning! Packet(s) missing or connection(s) open since before last 60 s of trace!\n*\n");
+			puts("\n*\n* Warning! Packet(s) missing or connection(s) open since before last 60 s of trace!\n*\n");
 			fputs("*\n* Warning! Packet(s) missing or connection(s) open since before last 60 s of trace!\n*\n\n", file);
 		}
 	} else {
@@ -485,7 +485,7 @@ void parse(const char* filename) {
 				dataComplete = 1;
 				batchCt++;
 				packetCt++;
-				if (packetCt % 1000 == 0) {
+				if (packetCt % 10000 == 0) {
 					printf("%d packets parsed.\n", packetCt);
 				}
 			} else {
