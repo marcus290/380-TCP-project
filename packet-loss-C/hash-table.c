@@ -28,9 +28,9 @@
 #include "min-heap.h"
 #include "PacketLoss.h"
 
-static int HT_INITIAL_BASE_SIZE = 997;
-static int HT_PRIME_1 = 59;
-static int HT_PRIME_2 = 13;
+static int HT_INITIAL_BASE_SIZE = 2999;
+static int HT_PRIME_1 = 131;
+static int HT_PRIME_2 = 101;
 static ht_item HT_DELETED_ITEM = {0, NULL};
 static oOS_ht_item OOS_HT_DELETED_ITEM = {0, NULL};
 
@@ -264,14 +264,14 @@ oOS_ht_hash_table* oOS_ht_new() {
 }
 
 static void oOS_ht_del_item(oOS_ht_item* i) {
-    puts("ht del item entered");
+    //puts("ht del item entered");
     int testitemnull = (i->value == NULL);
-    printf("test item null : %d; test item seqNum: %d, test item timestamp %.3f, from conn %llx\n", testitemnull, heap_front(i->value)->seqNum, heap_front(i->value)->timeStamp, i->key);
-    heap_term(i->value);
-    free(i->value);
-    puts("freed i->value");
+    //printf("test item null : %d; test item seqNum: %d, test item timestamp %.3f, from conn %llx\n", testitemnull, heap_front(i->value)->seqNum, heap_front(i->value)->timeStamp, i->key);
+    //heap_term(i->value);
+    //free(i->value);
+    //puts("freed i->value");
     free(i);
-    puts("freed i");
+    //puts("freed i");
 }
 
 
@@ -367,7 +367,8 @@ void oOS_ht_insert(oOS_ht_hash_table* ht, uint64_t key, struct heap* value) {
     int index = oOS_ht_get_hash(item->key, ht->size, 0);
     oOS_ht_item* cur_item = ht->items[index];
     int i = 1;
-    while (cur_item != NULL) {
+        
+    while (cur_item != NULL && i <= ht->size) {
         if (cur_item != &OOS_HT_DELETED_ITEM) {
             if (cur_item->key == key) {
                 oOS_ht_del_item(cur_item);
@@ -378,22 +379,34 @@ void oOS_ht_insert(oOS_ht_hash_table* ht, uint64_t key, struct heap* value) {
         index = oOS_ht_get_hash(item->key, ht->size, i);
         cur_item = ht->items[index];
         i++;
-    } 
+    }
+    // If all hash indexes are &OOS_HT_DELETED_ITEM and while (cur_item != NULL) is exhausted
+    if (i > ht->size) {
+        i = 0;
+        // find first &OOS_HT_DELETED_ITEM
+        do {
+            index = oOS_ht_get_hash(item->key, ht->size, i);
+            cur_item = ht->items[index];
+            i++;
+        } while (cur_item != &OOS_HT_DELETED_ITEM);
+    }
     ht->items[index] = item;
     ht->count++;
 }
 
 struct heap* oOS_ht_search(oOS_ht_hash_table* ht, uint64_t key) {
+    //puts("oOS_ht_search func entered!");
     int index = oOS_ht_get_hash(key, ht->size, 0);
     oOS_ht_item* item = ht->items[index];
     int i = 1;
-    while (item != NULL) {
+    while (item != NULL && i <= ht->size) {
         if (item != &OOS_HT_DELETED_ITEM) {
             if (item->key == key) {
                 return item->value;
             }
         }
         index = oOS_ht_get_hash(key, ht->size, i);
+        //if (key == (uint64_t) 0xd1f400009db26LL) printf("index: %d, i: %d\n", index, i);
         item = ht->items[index];
         i++;
     } 
