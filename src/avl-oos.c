@@ -10,10 +10,10 @@
 #include "PacketLoss.h"
 
 // // A utility function to get maximum of two integers 
-// int max(int a, int b) 
-// { 
-//     return (a > b)? a : b; 
-// } 
+int max_oos(int a, int b) 
+{ 
+    return ((a > b)? a : b); 
+} 
 
 // C function to search a given key in a given BST 
 oos_avlNode* oos_search(oos_avlNode* root, uint64_t key) 
@@ -72,8 +72,8 @@ oos_avlNode* oos_rightRotate(oos_avlNode* y)
     y->left = T2; 
   
     // Update heights 
-    y->height = max(oos_height(y->left), oos_height(y->right))+1; 
-    x->height = max(oos_height(x->left), oos_height(x->right))+1; 
+    y->height = max_oos(oos_height(y->left), oos_height(y->right))+1; 
+    x->height = max_oos(oos_height(x->left), oos_height(x->right))+1; 
   
     // Return new root 
     return x; 
@@ -91,8 +91,8 @@ oos_avlNode* oos_leftRotate(oos_avlNode* x)
     x->right = T2; 
   
     //  Update heights 
-    x->height = max(oos_height(x->left), oos_height(x->right))+1; 
-    y->height = max(oos_height(y->left), oos_height(y->right))+1; 
+    x->height = max_oos(oos_height(x->left), oos_height(x->right))+1; 
+    y->height = max_oos(oos_height(y->left), oos_height(y->right))+1; 
   
     // Return new root 
     return y; 
@@ -121,7 +121,7 @@ oos_avlNode* oos_insert(oos_avlNode* node, uint64_t key, struct heap* value)
         return node; 
   
     /* 2. Update height of this ancestor node */
-    node->height = 1 + max(oos_height(node->left), 
+    node->height = 1 + max_oos(oos_height(node->left), 
                            oos_height(node->right)); 
   
     /* 3. Get the balance factor of this ancestor 
@@ -242,7 +242,7 @@ oos_avlNode* oos_deleteNode(oos_avlNode* root, uint64_t key)
 //         }
         
     // STEP 2: UPDATE HEIGHT OF THE CURRENT NODE 
-    root->height = 1 + max(oos_height(root->left), 
+    root->height = 1 + max_oos(oos_height(root->left), 
                            oos_height(root->right)); 
   
     // STEP 3: GET THE BALANCE FACTOR OF THIS NODE (to 

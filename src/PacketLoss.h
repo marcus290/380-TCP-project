@@ -7,7 +7,7 @@ struct packet {
 	unsigned long payloadSize;
 	int syn;
 	int fin;
-	int ping;
+	int reset;
 	int connState;
 	uint64_t connID;
 };

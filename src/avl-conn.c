@@ -10,10 +10,10 @@
 #include "PacketLoss.h"
 
 // // A utility function to get maximum of two integers 
-// int max(int a, int b) 
-// { 
-//     return (a > b)? a : b; 
-// } 
+int max_conn(int a, int b) 
+{ 
+    return (a > b)? a : b; 
+} 
 
 // C function to search a given key in a given BST 
 avlNode* search(avlNode* root, uint64_t key) 
@@ -72,8 +72,8 @@ avlNode* rightRotate(avlNode* y)
     y->left = T2; 
   
     // Update heights 
-    y->height = max(height(y->left), height(y->right))+1; 
-    x->height = max(height(x->left), height(x->right))+1; 
+    y->height = max_conn(height(y->left), height(y->right))+1; 
+    x->height = max_conn(height(x->left), height(x->right))+1; 
   
     // Return new root 
     return x; 
@@ -91,8 +91,8 @@ avlNode* leftRotate(avlNode* x)
     x->right = T2; 
   
     //  Update heights 
-    x->height = max(height(x->left), height(x->right))+1; 
-    y->height = max(height(y->left), height(y->right))+1; 
+    x->height = max_conn(height(x->left), height(x->right))+1; 
+    y->height = max_conn(height(y->left), height(y->right))+1; 
   
     // Return new root 
     return y; 
@@ -121,7 +121,7 @@ avlNode* insert(avlNode* node, uint64_t key, struct connStatus* value)
         return node; 
   
     /* 2. Update height of this ancestor node */
-    node->height = 1 + max(height(node->left), 
+    node->height = 1 + max_conn(height(node->left), 
                            height(node->right)); 
   
     /* 3. Get the balance factor of this ancestor 
@@ -242,7 +242,7 @@ avlNode* deleteNode(avlNode* root, uint64_t key)
 //         }
         
     // STEP 2: UPDATE HEIGHT OF THE CURRENT NODE 
-    root->height = 1 + max(height(root->left), 
+    root->height = 1 + max_conn(height(root->left), 
                            height(root->right)); 
   
     // STEP 3: GET THE BALANCE FACTOR OF THIS NODE (to 
