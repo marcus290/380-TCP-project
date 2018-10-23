@@ -266,15 +266,16 @@ void summary(avlNode** connBSTRoot, struct node* closedConnHead,
 	
 	while (oosBSTPtr != NULL) {
 		h = oosBSTPtr->value;
-
+		
 		// If oos packet in buffer is a phantom byte during connection 
 		// close, ignore and skip.
-		if (heap_front(h)->seqNum - search(*connBSTRoot, oosBSTPtr->key)->value->seqNum == 1
-				&& heap_front(h)->connState == 2) {
+		if (search(*connBSTRoot, oosBSTPtr->key) != NULL
+				&& heap_front(h)->seqNum - search(*connBSTRoot, oosBSTPtr->key)->value->seqNum == 1
+				&& heap_front(h)->connState == 2) { printf("entered if statement\n");
 			heap_pop(h);
 			break;
 		}
-
+		
 		IDToString(ipString, oosBSTPtr->key);
 		printf("\n\nBytes missing from %s: \n", ipString);
 		fprintf(file, "\n\nBytes missing from %s: \n", ipString);
