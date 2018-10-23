@@ -5,6 +5,7 @@
 
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #include "avl-oos.h"
 #include "PacketLoss.h"
@@ -47,7 +48,7 @@ void oos_inorder(oos_avlNode* root)
     if (root != NULL) 
     { 
         oos_inorder(root->left); 
-        printf("%llx \n", root->key); 
+        printf("%lx \n", root->key); 
         oos_inorder(root->right); 
     } 
 } 

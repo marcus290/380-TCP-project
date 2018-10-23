@@ -5,6 +5,7 @@
 
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #include "avl-conn.h"
 #include "PacketLoss.h"
@@ -47,7 +48,7 @@ void inorder(avlNode* root)
     if (root != NULL) 
     { 
         inorder(root->left); 
-        printf("%llx \n", root->key); 
+        printf("%lx \n", root->key); 
         inorder(root->right); 
     } 
 } 

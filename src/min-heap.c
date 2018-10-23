@@ -22,7 +22,7 @@ void heap_init(struct heap* h)
 		.count = 0,
 		.data = malloc(sizeof(struct packet*) * base_size)
 	};
-	if (!h->data) _exit(1); // Exit if the memory allocation fails
+	if (!h->data) exit(1); // Exit if the memory allocation fails
 }
 
 // Inserts element to the heap
@@ -35,7 +35,7 @@ void heap_push(struct heap* h, struct packet* value)
 	{
 		h->size <<= 1;
 		h->data = realloc(h->data, sizeof(struct packet*) * h->size);
-		if (!h->data) _exit(1); // Exit if the memory allocation fails
+		if (!h->data) exit(1); // Exit if the memory allocation fails
 	}
 
 	// Find out where to put the element and put it
@@ -61,7 +61,7 @@ void heap_pop(struct heap* h)
 	{
 		h->size >>= 1;
 		h->data = realloc(h->data, sizeof(struct packet*) * h->size);
-		if (!h->data) _exit(1); // Exit if the memory allocation fails
+		if (!h->data) exit(1); // Exit if the memory allocation fails
 	}
 
 	// Reorder the elements

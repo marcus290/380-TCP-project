@@ -204,9 +204,9 @@ void openConns(avlNode** root, struct warningNode** warningHead, int* connCt,
 
         char ipString[40];
 		IDToString(ipString, (*root)->key);
-		printf("%s expecting seq num %d since %.3f\n", 
+		printf("%s expecting seq num %ld since %.3f\n", 
 				ipString, (*root)->value->seqNum, (*root)->value->timeStamp);
-		fprintf(file, "%s expecting seq num %d since %.3f\n", 
+		fprintf(file, "%s expecting seq num %ld since %.3f\n", 
 				ipString, (*root)->value->seqNum, (*root)->value->timeStamp);
 		if ((*root)->value->timeStamp < lastTimeStamp - 20)
 			updateWarningNodes(warningHead, (*root)->key, (*root)->value->timeStamp, 0L);
@@ -290,11 +290,11 @@ void summary(avlNode** connBSTRoot, struct node* closedConnHead,
 			if (lastSeqNum == 0) {
 				// If not in connBST, SYN is missing
 				totalMissingBytes += nextOOSPacket->seqNum - 1;
-				printf("%d missing bytes between start of connection and seq num %d (incl. SYN phantom byte) at time %.3f\n",
+				printf("%ld missing bytes between start of connection and seq num %ld (incl. SYN phantom byte) at time %.3f\n",
 						nextOOSPacket->seqNum, 
 						nextOOSPacket->seqNum, 
 						nextOOSPacket->timeStamp);
-				fprintf(file, "%d missing bytes between start of connection and seq num %d (incl. SYN phantom byte) at time %.3f\n",
+				fprintf(file, "%ld missing bytes between start of connection and seq num %ld (incl. SYN phantom byte) at time %.3f\n",
 						nextOOSPacket->seqNum, 
 						nextOOSPacket->seqNum, 
 						nextOOSPacket->timeStamp);
@@ -307,10 +307,10 @@ void summary(avlNode** connBSTRoot, struct node* closedConnHead,
 				updateLinkedList(&synMissingList, oosBSTPtr->key);		
 			} else if (lastSeqNum < nextOOSPacket->seqNum) { 
 				totalMissingBytes += nextOOSPacket->seqNum - lastSeqNum;
-				printf("%d missing bytes between seq num %d and %d at time %.3f\n",
+				printf("%ld missing bytes between seq num %ld and %ld at time %.3f\n",
 						nextOOSPacket->seqNum - lastSeqNum, lastSeqNum, 
 						nextOOSPacket->seqNum, nextOOSPacket->timeStamp);
-				fprintf(file, "%d missing bytes between seq num %d and %d at time %.3f\n",
+				fprintf(file, "%ld missing bytes between seq num %ld and %ld at time %.3f\n",
 						nextOOSPacket->seqNum - lastSeqNum, lastSeqNum, 
 						nextOOSPacket->seqNum, nextOOSPacket->timeStamp);
 				if (nextOOSPacket->timeStamp < lastTimeStamp - 20)
@@ -345,7 +345,7 @@ void summary(avlNode** connBSTRoot, struct node* closedConnHead,
 	puts("SUMMARY:\n");
 	printf("%d packets checked containing a total of %lld bytes from %d connections.\n\n", 
 			packetCt, byteCt, connCt);
-	printf("%d / %lld bytes missing from trace sequence (%.4f%% loss).\n\n", 
+	printf("%ld / %lld bytes missing from trace sequence (%.4f%% loss).\n\n", 
 			totalMissingBytes, byteCt + totalMissingBytes, totalMissingBytes / 
 			((double) byteCt + totalMissingBytes) * 100);
 	
@@ -353,7 +353,7 @@ void summary(avlNode** connBSTRoot, struct node* closedConnHead,
 	fputs("\n\nSUMMARY:\n", file);
 	fprintf(file, "%d packets checked containing a total of %lld bytes from %d connections.\n\n", 
 			packetCt, byteCt, connCt);
-	fprintf(file, "%d / %lld bytes missing from trace sequence (%.4f%% loss).\n\n", 
+	fprintf(file, "%ld / %lld bytes missing from trace sequence (%.4f%% loss).\n\n", 
 			totalMissingBytes, byteCt + totalMissingBytes, totalMissingBytes / 
 			((double) byteCt + totalMissingBytes) * 100);
 	
@@ -374,9 +374,9 @@ void summary(avlNode** connBSTRoot, struct node* closedConnHead,
 				printf("* %s open since %.3f\n", ipString, warningHead->timeStamp);
 				fprintf(file, "* %s open since %.3f\n", ipString, warningHead->timeStamp);
 			} else {
-				printf("* %d bytes missing from %s since %.3f\n", 
+				printf("* %ld bytes missing from %s since %.3f\n", 
 						warningHead->bytesMissing, ipString, warningHead->timeStamp);
-				fprintf(file, "* %d bytes missing from %s since %.3f\n", 
+				fprintf(file, "* %ld bytes missing from %s since %.3f\n", 
 						warningHead->bytesMissing, ipString, warningHead->timeStamp);
 			}
 			
