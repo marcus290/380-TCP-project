@@ -180,8 +180,8 @@ int updateSeqNums(avlNode** connBSTRoot, oos_avlNode** oosBSTRoot,
 }
 
 /**
- * Function for storing information of missing packets over 20s before
- * the end of data transmissions into a the linked list. 
+ * Function for storing information of missing packets over the defined time
+ * before the end of data transmissions into a the linked list. 
  */	
 void updateWarningNodes(struct warningNode** warningHead, uint64_t connID, 
 							double timeStamp, unsigned long bytesMissing) {
@@ -197,10 +197,10 @@ void updateWarningNodes(struct warningNode** warningHead, uint64_t connID,
  * Recursive function for traversing the connections BST and outputting open connection info.
  */
 void openConns(avlNode** root, struct warningNode** warningHead, int* connCt, 
-				int* openConnCt, FILE *file, double lastTimeStamp) { 
+				int* openConnCt, FILE *file, double lastTimeStamp, int warningTime) { 
     if (*root != NULL) 
     { 
-        openConns(&((*root)->left), warningHead, connCt, openConnCt, file, lastTimeStamp); 
+        openConns(&((*root)->left), warningHead, connCt, openConnCt, file, lastTimeStamp, warningTime); 
 
         char ipString[40];
 		IDToString(ipString, (*root)->key);
@@ -208,12 +208,12 @@ void openConns(avlNode** root, struct warningNode** warningHead, int* connCt,
 				ipString, (*root)->value->seqNum, (*root)->value->timeStamp);
 		fprintf(file, "%s expecting seq num %ld since %.3f\n", 
 				ipString, (*root)->value->seqNum, (*root)->value->timeStamp);
-		if ((*root)->value->timeStamp < lastTimeStamp - 20)
+		if ((*root)->value->timeStamp < lastTimeStamp - warningTime)
 			updateWarningNodes(warningHead, (*root)->key, (*root)->value->timeStamp, 0L);
 		(*connCt)++;
 		(*openConnCt)++;
 		
-        openConns(&((*root)->right), warningHead, connCt, openConnCt, file, lastTimeStamp); 
+        openConns(&((*root)->right), warningHead, connCt, openConnCt, file, lastTimeStamp, warningTime); 
     } 
 } 
 
@@ -222,7 +222,7 @@ void openConns(avlNode** root, struct warningNode** warningHead, int* connCt,
  */
 void summary(avlNode** connBSTRoot, struct node* closedConnHead, 
 				oos_avlNode** oosBSTRoot, int packetCt, unsigned long long byteCt, 
-				double lastTimeStamp, const char* outputFilename) {
+				double lastTimeStamp, int warningTime, const char* outputFilename) {
 	FILE *file;
 	file = fopen(outputFilename, "w");
 	if(file == NULL) {
@@ -248,12 +248,12 @@ void summary(avlNode** connBSTRoot, struct node* closedConnHead,
 	
 
 	puts("\nParse finished! Analysing trace statistics...\n\n");
-	puts("======================================================================================");
+	puts("================================================================================");
 	printf("* OUTPUT FROM PACKET LOSS ANALYSIS to %s\n", outputFilename);
-	puts("======================================================================================");
-	fputs("======================================================================================\n", file);
+	puts("================================================================================");
+	fputs("================================================================================\n", file);
 	fprintf(file, "* OUTPUT FROM PACKET LOSS ANALYSIS of %s\n", outputFilename);
-	fputs("======================================================================================\n", file);
+	fputs("================================================================================\n", file);
 	
 
 	// Collate missing packets and print to terminal
@@ -299,7 +299,7 @@ void summary(avlNode** connBSTRoot, struct node* closedConnHead,
 						nextOOSPacket->seqNum, 
 						nextOOSPacket->seqNum, 
 						nextOOSPacket->timeStamp);
-				if (nextOOSPacket->timeStamp < lastTimeStamp - 20)
+				if (nextOOSPacket->timeStamp < lastTimeStamp - warningTime)
 					updateWarningNodes(&warningHead, oosBSTPtr->key, nextOOSPacket->timeStamp, nextOOSPacket->seqNum);	
 				// Increment connection counters because not in connBST
 				// but connection is incomplete
@@ -314,7 +314,7 @@ void summary(avlNode** connBSTRoot, struct node* closedConnHead,
 				fprintf(file, "%ld missing bytes between seq num %ld and %ld at time %.3f\n",
 						nextOOSPacket->seqNum - lastSeqNum, lastSeqNum, 
 						nextOOSPacket->seqNum, nextOOSPacket->timeStamp);
-				if (nextOOSPacket->timeStamp < lastTimeStamp - 20)
+				if (nextOOSPacket->timeStamp < lastTimeStamp - warningTime)
 					updateWarningNodes(&warningHead, oosBSTPtr->key, nextOOSPacket->timeStamp, nextOOSPacket->seqNum - lastSeqNum);
 			}
 			if (lastSeqNum < nextOOSPacket->seqNum + nextOOSPacket->payloadSize + nextOOSPacket->fin)
@@ -327,7 +327,7 @@ void summary(avlNode** connBSTRoot, struct node* closedConnHead,
 	// Print open connections
 	puts("\n\nConnections open or with missing packets:");
 	fputs("\n\nConnections open or with missing packets:\n", file);
-	openConns(connBSTRoot, &warningHead, &connCt, &openConnCt, file, lastTimeStamp);
+	openConns(connBSTRoot, &warningHead, &connCt, &openConnCt, file, lastTimeStamp, warningTime);
 	// Print connections where SYN is missing
 	while (synMissingList != NULL) {
 		IDToString(ipString, synMissingList->connID);
@@ -342,7 +342,7 @@ void summary(avlNode** connBSTRoot, struct node* closedConnHead,
 	}
 
 	// Print summary statistics
-	puts("\n\n======================================================================================");
+	puts("\n\n================================================================================");
 	puts("SUMMARY:\n");
 	printf("%d packets checked containing a total of %lld bytes from %d connections.\n\n", 
 			packetCt, byteCt, connCt);
@@ -350,7 +350,7 @@ void summary(avlNode** connBSTRoot, struct node* closedConnHead,
 			totalMissingBytes, byteCt + totalMissingBytes, totalMissingBytes / 
 			((double) byteCt + totalMissingBytes) * 100);
 	
-	fputs("======================================================================================\n", file);
+	fputs("================================================================================\n", file);
 	fputs("\n\nSUMMARY:\n", file);
 	fprintf(file, "%d packets checked containing a total of %lld bytes from %d connections.\n\n", 
 			packetCt, byteCt, connCt);
@@ -363,12 +363,12 @@ void summary(avlNode** connBSTRoot, struct node* closedConnHead,
 		fprintf(file, "Subsequent packets from %d open connection(s) could not be analysed.\n\n", openConnCt);
 	}
 
-	// Print warning for missing bytes (i) 60s before trace end and (ii) 20s before trace end
-	puts("\n======================================================================================");
-	fputs("\n======================================================================================\n", file);
+	// Print warning for missing bytes (i) 60s before trace end and (ii) before trace end - warning time
+	puts("\n================================================================================");
+	fputs("\n================================================================================\n", file);
 	if (warningHead != NULL) {
-		puts("* Warning! Packet(s) missing or connection(s) open since before last 20 s of data transmission!\n*");
-		fputs("* Warning! Packet(s) missing or connection(s) open since before last 20 s of data transmission!\n*\n", file);
+		printf("* Warning! Packet(s) missing or connection(s) open since before last %d s of data transmission!\n*", warningTime);
+		fprintf(file, "* Warning! Packet(s) missing or connection(s) open since before last %d s of data transmission!\n*\n", warningTime);
 		while (warningHead != NULL) {
 			IDToString(ipString, warningHead->connID);
 			if (warningHead->bytesMissing == 0) {
@@ -384,17 +384,17 @@ void summary(avlNode** connBSTRoot, struct node* closedConnHead,
 			if (warningHead->timeStamp < lastTimeStamp - 60) over60sWarningFlag = 1;
 			warningHead = warningHead->next;
 		}
-		if (over60sWarningFlag) {
+		if (over60sWarningFlag && warningTime < 60) {
 			puts("\n*\n* Warning! Packet(s) missing or connection(s) open since before last 60 s of data transmission!\n*");
 			fputs("*\n* Warning! Packet(s) missing or connection(s) open since before last 60 s of data transmission!\n*\n", file);
 		}
 	} else {
-		puts("* No packets missing before last 20 s of data transmission.");
-		fputs("* No packets missing before last 20 s of data transmission.\n", file);
+		printf("* No packets missing before last %d s of data transmission.", warningTime);
+		fprintf(file, "* No packets missing before last %d s of data transmission.\n", warningTime);
 	}
-	puts("======================================================================================");
+	puts("================================================================================");
 	puts("\n");
-	fputs("======================================================================================\n", file);
+	fputs("================================================================================\n", file);
 	fputs("\n", file);
 
 
@@ -405,7 +405,7 @@ void summary(avlNode** connBSTRoot, struct node* closedConnHead,
 /**
  * Function for parsing the tcp input file.
  */
-void parse(const char* filename) {
+void parse(const char* filename, int warningTime) {
 //Initialize file input/output variables
 	FILE *file;
 	file = fopen(filename, "r");
@@ -563,17 +563,34 @@ void parse(const char* filename) {
 	for (int i = len - 1; i > len - 5; i--) outputFile[i] = 0; 
 	strcat(outputFile, outputSuffix);
 	summary(&connBSTRoot, closedConnHead, &oosBSTRoot, packetCt, 
-			byteCt, lastTimeStamp, outputFile);
+			byteCt, lastTimeStamp, warningTime, outputFile);
 }
 
 
 int main(int argc, char *argv[]) {
-    char defaultFile[] = "trace-small.txt";
+	if (argc == 1 || (argc > 2 && !atoi(argv[2]))) {
+		puts("./PacketLoss filename [time]\n\n" 
+			"Parses a .txt trace file from the University Satellite Simulator and analyses\n" 
+			"any missing packets and open connections remaining after the end of the trace.\n\n" 
+			"Arguments:\n" 
+			"1. \"filename\"\t(string, required) The file name of the .txt trace file to be \n" 
+			"\t\tanalysed in the current directory.\n" 
+			"2. \"time\"\t(numeric, optional) The time period in seconds before the end of\n" 
+										"\t\tthe experiment, whereby missing packets or connections\n" 
+										"\t\topen before this time will result in warnings printed.\n" 
+										"\t\tBy default, the analyser will include warnings\n" 
+										"\t\tfor missing packets or connections open since\n" 
+										"\t\t20s before the last packet with payload data.\n\n" 				
+			"Examples:\n" 
+			"> ./PacketLoss island-trace.txt 30\n");
+		return(0);
+	}
+    const char* filename = argv[1];
+	int warningTime = (argc > 2) ? atoi(argv[2]) : 20;
     
-	const char* filename = (argc > 1) ? argv[1] : defaultFile;
 	printf("Starting analysis of %s!\n", filename);
 	
-	parse(filename);
+	parse(filename, warningTime);
 	puts("Finished and exiting!");
 	return(0);	
 }
